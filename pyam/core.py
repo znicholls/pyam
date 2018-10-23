@@ -48,6 +48,41 @@ class _PyamDataFrame(object):
     This class provides a number of data analysis tools, in particular data categorisation, filtering and visualistation tools
     """
 
+    def __init__(self, data, **kwargs):
+        """Initialize an instance of a _PyamDataFrame
+
+        Parameters
+        ----------
+        data: ixmp.TimeSeries, ixmp.Scenario, pd.DataFrame or data file
+            an instance of an TimeSeries or Scenario (requires `ixmp`),
+            or pd.DataFrame or data file with IAMC-format data columns.
+            A pd.DataFrame can have the required data as columns or index.
+
+            Special support is provided for data files downloaded directly from
+            IIASA SSP and RCP databases. If you run into any problems loading
+            data, please make an issue at:
+            https://github.com/IAMconsortium/pyam/issues
+        """
+        # import data from pd.DataFrame or read from source
+        if isinstance(data, pd.DataFrame):
+            self.data = format_data(data.copy())
+        elif has_ix and isinstance(data, ixmp.TimeSeries):
+            self.data = read_ix(data, **kwargs)
+        else:
+            self.data = read_files(data, **kwargs)
+
+        # cast year column to `int` if necessary
+        if not self.data.year.dtype == 'int64':
+            self.data.year = cast_years_to_int(self.data.year)
+
+        # define a dataframe for categorization and other metadata indicators
+        self.meta = self.data[META_IDX].drop_duplicates().set_index(META_IDX)
+        self.reset_exclude()
+
+        # execute user-defined code
+        if 'exec' in run_control():
+            self._execute_run_control()
+
     def __getitem__(self, key):
         _key_check = [key] if isstr(key) else key
         if set(_key_check).issubset(self.meta.columns):
@@ -640,25 +675,12 @@ class IamDataFrame(_PyamDataFrame):
             data, please make an issue at:
             https://github.com/IAMconsortium/pyam/issues
         """
-        # import data from pd.DataFrame or read from source
-        if isinstance(data, pd.DataFrame):
-            self.data = format_data(data.copy())
-        elif has_ix and isinstance(data, ixmp.TimeSeries):
-            self.data = read_ix(data, **kwargs)
-        else:
-            self.data = read_files(data, **kwargs)
+        super().__init__(data, **kwargs)
 
         # cast year column to `int` if necessary
         if not self.data.year.dtype == 'int64':
             self.data.year = cast_years_to_int(self.data.year)
 
-        # define a dataframe for categorization and other metadata indicators
-        self.meta = self.data[META_IDX].drop_duplicates().set_index(META_IDX)
-        self.reset_exclude()
-
-        # execute user-defined code
-        if 'exec' in run_control():
-            self._execute_run_control()
 
     def _execute_run_control(self):
         for module_block in run_control()['exec']:
@@ -1053,8 +1075,10 @@ class IamDataFrame(_PyamDataFrame):
         """
         try:
             openscm = OpenSCMDataFrame()
-            openscm.data = self._get_openscm_df()
-            openscm.meta = self.meta
+            data, meta = self._get_openscm_data_and_metadata()
+
+            openscm.data = data
+            openscm.meta = meta
         except Exception:
             worst_case_msg = (
                 "I don't know why, but I can't convert to an OpenSCMDataFrame.\n"
@@ -1064,29 +1088,27 @@ class IamDataFrame(_PyamDataFrame):
 
         return openscm
 
-    def _get_openscm_df(self):
-        openscm_df = self.data.copy()
-        # TODO: add error (?) here if "iam" column already exists
-        openscm_df.reset_index(drop=True, inplace=True)
-        return openscm_df.rename(columns={"year": "time"})
+    def _get_openscm_data_and_metadata(self):
+        conv = copy.deepcopy(self)
+
+        model_scen_combos = conv[META_IDX].drop_duplicates()
+        scenarios = model_scen_combos.scenario
+        models = model_scen_combos.model
+        openscm_scens = (models + "|" + scenarios).tolist()
+        openscm_models = ["N/A"] * len(models)
+
+        renamings = {
+            "scenario": dict(zip(scenarios, openscm_scens)),
+            "model": dict(zip(models, openscm_models)),
+        }
+        conv.rename(renamings, inplace=True)
+
+        return conv.data.reset_index(drop=True), conv.meta
 
 
 class OpenSCMDataFrame(_PyamDataFrame):
     """Base class for data following the OpenSCM
     """
-    def __init__(self, data=None):
-        """Initialize an instance of an OpenSCMDataFrame
-
-        Parameters
-        ----------
-        data : :obj:`pd.DataFrame`
-            pd.DataFrame with IAMC-format data columns.
-        """
-        if data is not None:
-            openscm_df = IamDataFrame(data).to_openscm_df()
-            self.data = openscm_df.data
-            self.meta = openscm_df.meta
-
     def to_iam_df(self):
         """Convert to an IamDataFrame
 
