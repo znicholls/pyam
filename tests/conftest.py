@@ -167,30 +167,30 @@ def test_pd_df():
 
 
 @pytest.fixture(scope="function")
-def meta_df():
+def meta_df_iam():
     df = IamDataFrame(data=TEST_DF)
     yield df
 
 
 @pytest.fixture(scope="function")
-def check_aggregate_df():
+def check_aggregate_df_iam():
     df = IamDataFrame(data=CHECK_AGG_DF)
     yield df
 
 
 @pytest.fixture(scope="function")
-def check_aggregate_regional_df():
+def check_aggregate_regional_df_iam():
     df = IamDataFrame(data=CHECK_AGG_REGIONAL_DF)
     yield df
 
 
 @pytest.fixture(scope="function")
-def reg_df():
+def reg_df_iam():
     df = IamDataFrame(data=REG_DF)
     yield df
 
 
 @pytest.fixture(scope="session")
-def plot_df():
+def plot_df_iam():
     df = IamDataFrame(data=os.path.join(TEST_DATA_DIR, 'plot_data.csv'))
     yield df

@@ -131,19 +131,19 @@ def test_filter_error(test_df):
     pytest.raises(ValueError, test_df.filter, foo='foo')
 
 
-def test_filter_as_kwarg(meta_df):
-    obs = list(meta_df.filter(variable='Primary Energy|Coal').scenarios())
+def test_filter_as_kwarg(meta_df_iam):
+    obs = list(meta_df_iam.filter(variable='Primary Energy|Coal').scenarios())
     assert obs == ['a_scenario']
 
 
-def test_filter_keep_false(meta_df):
-    df = meta_df.filter(variable='Primary Energy|Coal', year=2005, keep=False)
+def test_filter_keep_false(meta_df_iam):
+    df = meta_df_iam.filter(variable='Primary Energy|Coal', year=2005, keep=False)
     obs = df.data[df.data.scenario == 'a_scenario'].value
     npt.assert_array_equal(obs, [1, 6, 3])
 
 
-def test_filter_by_regexp(meta_df):
-    obs = meta_df.filter(scenario='a_scenari.$', regexp=True)
+def test_filter_by_regexp(meta_df_iam):
+    obs = meta_df_iam.filter(scenario='a_scenari.$', regexp=True)
     assert obs['scenario'].unique() == 'a_scenario'
 
 
@@ -161,140 +161,140 @@ def test_read_pandas():
     assert list(df.variables()) == ['Primary Energy']
 
 
-def test_filter_meta_index(meta_df):
-    obs = meta_df.filter(scenario='a_scenario2').meta.index
+def test_filter_meta_index(meta_df_iam):
+    obs = meta_df_iam.filter(scenario='a_scenario2').meta.index
     exp = pd.MultiIndex(levels=[['a_model'], ['a_scenario2']],
                         labels=[[0], [0]],
                         names=['model', 'scenario'])
     pd.testing.assert_index_equal(obs, exp)
 
 
-def test_meta_idx(meta_df):
+def test_meta_idx(meta_df_iam):
     # assert that the `drop_duplicates()` in `_meta_idx()` returns right length
-    assert len(_meta_idx(meta_df.data)) == 2
+    assert len(_meta_idx(meta_df_iam.data)) == 2
 
 
-def test_require_variable(meta_df):
-    obs = meta_df.require_variable(variable='Primary Energy|Coal',
+def test_require_variable(meta_df_iam):
+    obs = meta_df_iam.require_variable(variable='Primary Energy|Coal',
                                    exclude_on_fail=True)
     assert len(obs) == 1
     assert obs.loc[0, 'scenario'] == 'a_scenario2'
 
-    assert list(meta_df['exclude']) == [False, True]
+    assert list(meta_df_iam['exclude']) == [False, True]
 
 
-def test_require_variable_top_level(meta_df):
-    obs = require_variable(meta_df, variable='Primary Energy|Coal',
+def test_require_variable_top_level(meta_df_iam):
+    obs = require_variable(meta_df_iam, variable='Primary Energy|Coal',
                            exclude_on_fail=True)
     assert len(obs) == 1
     assert obs.loc[0, 'scenario'] == 'a_scenario2'
 
-    assert list(meta_df['exclude']) == [False, True]
+    assert list(meta_df_iam['exclude']) == [False, True]
 
 
-def test_validate_all_pass(meta_df):
-    obs = meta_df.validate(
+def test_validate_all_pass(meta_df_iam):
+    obs = meta_df_iam.validate(
         {'Primary Energy': {'up': 10}}, exclude_on_fail=True)
     assert obs is None
-    assert len(meta_df.data) == 6  # data unchanged
+    assert len(meta_df_iam.data) == 6  # data unchanged
 
-    assert list(meta_df['exclude']) == [False, False]  # none excluded
+    assert list(meta_df_iam['exclude']) == [False, False]  # none excluded
 
 
-def test_validate_nonexisting(meta_df):
-    obs = meta_df.validate({'Primary Energy|Coal': {'up': 2}},
+def test_validate_nonexisting(meta_df_iam):
+    obs = meta_df_iam.validate({'Primary Energy|Coal': {'up': 2}},
                            exclude_on_fail=True)
     assert len(obs) == 1
     assert obs['scenario'].values[0] == 'a_scenario'
 
-    assert list(meta_df['exclude']) == [True, False]  # scenario with failed
+    assert list(meta_df_iam['exclude']) == [True, False]  # scenario with failed
     # validation excluded, scenario with non-defined value passes validation
 
 
-def test_validate_up(meta_df):
-    obs = meta_df.validate({'Primary Energy': {'up': 6.5}},
+def test_validate_up(meta_df_iam):
+    obs = meta_df_iam.validate({'Primary Energy': {'up': 6.5}},
                            exclude_on_fail=False)
     assert len(obs) == 1
     assert obs['year'].values[0] == 2010
 
-    assert list(meta_df['exclude']) == [False, False]  # assert none excluded
+    assert list(meta_df_iam['exclude']) == [False, False]  # assert none excluded
 
 
-def test_validate_lo(meta_df):
-    obs = meta_df.validate({'Primary Energy': {'up': 8, 'lo': 2.0}})
+def test_validate_lo(meta_df_iam):
+    obs = meta_df_iam.validate({'Primary Energy': {'up': 8, 'lo': 2.0}})
     assert len(obs) == 1
     assert obs['year'].values[0] == 2005
     assert list(obs['scenario'].values) == ['a_scenario']
 
 
-def test_validate_both(meta_df):
-    obs = meta_df.validate({'Primary Energy': {'up': 6.5, 'lo': 2.0}})
+def test_validate_both(meta_df_iam):
+    obs = meta_df_iam.validate({'Primary Energy': {'up': 6.5, 'lo': 2.0}})
     assert len(obs) == 2
     assert list(obs['year'].values) == [2005, 2010]
     assert list(obs['scenario'].values) == ['a_scenario', 'a_scenario2']
 
 
-def test_validate_year(meta_df):
-    obs = meta_df.validate({'Primary Energy': {'up': 5.0, 'year': 2005}},
+def test_validate_year(meta_df_iam):
+    obs = meta_df_iam.validate({'Primary Energy': {'up': 5.0, 'year': 2005}},
                            exclude_on_fail=False)
     assert obs is None
 
-    obs = meta_df.validate({'Primary Energy': {'up': 5.0, 'year': 2010}},
+    obs = meta_df_iam.validate({'Primary Energy': {'up': 5.0, 'year': 2010}},
                            exclude_on_fail=False)
     assert len(obs) == 2
 
 
-def test_validate_exclude(meta_df):
-    meta_df.validate({'Primary Energy': {'up': 6.0}}, exclude_on_fail=True)
-    assert list(meta_df['exclude']) == [False, True]
+def test_validate_exclude(meta_df_iam):
+    meta_df_iam.validate({'Primary Energy': {'up': 6.0}}, exclude_on_fail=True)
+    assert list(meta_df_iam['exclude']) == [False, True]
 
 
-def test_validate_top_level(meta_df):
-    obs = validate(meta_df, criteria={'Primary Energy': {'up': 6.0}},
+def test_validate_top_level(meta_df_iam):
+    obs = validate(meta_df_iam, criteria={'Primary Energy': {'up': 6.0}},
                    exclude_on_fail=True, variable='Primary Energy')
     assert len(obs) == 1
     assert obs['year'].values[0] == 2010
-    assert list(meta_df['exclude']) == [False, True]
+    assert list(meta_df_iam['exclude']) == [False, True]
 
 
-def test_check_aggregate_pass(check_aggregate_df):
-    obs = check_aggregate_df.filter(
+def test_check_aggregate_pass(check_aggregate_df_iam):
+    obs = check_aggregate_df_iam.filter(
         scenario='a_scenario'
     ).check_aggregate('Primary Energy')
     assert obs is None
 
 
-def test_check_aggregate_fail(meta_df):
-    obs = meta_df.check_aggregate('Primary Energy', exclude_on_fail=True)
+def test_check_aggregate_fail(meta_df_iam):
+    obs = meta_df_iam.check_aggregate('Primary Energy', exclude_on_fail=True)
     assert len(obs.columns) == 2
     assert obs.index.get_values()[0] == (
         'Primary Energy', 'a_model', 'a_scenario', 'World'
     )
 
 
-def test_check_aggregate_top_level(meta_df):
-    obs = check_aggregate(meta_df, variable='Primary Energy', year=2005)
+def test_check_aggregate_top_level(meta_df_iam):
+    obs = check_aggregate(meta_df_iam, variable='Primary Energy', year=2005)
     assert len(obs.columns) == 1
     assert obs.index.get_values()[0] == (
         'Primary Energy', 'a_model', 'a_scenario', 'World'
     )
 
 
-def test_df_iam_check_aggregate_pass(check_aggregate_df):
-    obs = check_aggregate_df.check_aggregate('Primary Energy')
+def test_df_iam_check_aggregate_pass(check_aggregate_df_iam):
+    obs = check_aggregate_df_iam.check_aggregate('Primary Energy')
     assert obs is None
 
-    for variable in check_aggregate_df.variables():
-        obs = check_aggregate_df.check_aggregate(variable)
+    for variable in check_aggregate_df_iam.variables():
+        obs = check_aggregate_df_iam.check_aggregate(variable)
         assert obs is None
 
 
-def test_df_iam_check_aggregate_regions_pass(check_aggregate_df):
-    obs = check_aggregate_df.check_aggregate_regions('Primary Energy')
+def test_df_iam_check_aggregate_regions_pass(check_aggregate_df_iam):
+    obs = check_aggregate_df_iam.check_aggregate_regions('Primary Energy')
     assert obs is None
 
-    for variable in check_aggregate_df.variables():
-        obs = check_aggregate_df.check_aggregate_regions(variable)
+    for variable in check_aggregate_df_iam.variables():
+        obs = check_aggregate_df_iam.check_aggregate_regions(variable)
         assert obs is None
 
 
@@ -339,7 +339,7 @@ def run_check_agg_fail(pyam_df, tweak_dict, test_type):
             assert set(obs.index.get_values()[0]) == set(expected_index)
 
 
-def test_df_iam_check_aggregate_fail(check_aggregate_df):
+def test_df_iam_check_aggregate_fail(check_aggregate_df_iam):
     to_tweak = {
         'model': 'IMG',
         'scenario': 'a_scen_2',
@@ -347,10 +347,10 @@ def test_df_iam_check_aggregate_fail(check_aggregate_df):
         'variable': 'Emissions|CO2',
         'unit': 'Mt CO2/yr',
     }
-    run_check_agg_fail(check_aggregate_df, to_tweak, 'aggregate')
+    run_check_agg_fail(check_aggregate_df_iam, to_tweak, 'aggregate')
 
 
-def test_df_iam_check_aggregate_fail_no_regions(check_aggregate_df):
+def test_df_iam_check_aggregate_fail_no_regions(check_aggregate_df_iam):
     to_tweak = {
         'model': 'MSG-GLB',
         'scenario': 'a_scen_2',
@@ -358,10 +358,10 @@ def test_df_iam_check_aggregate_fail_no_regions(check_aggregate_df):
         'variable': 'Emissions|C2F6|Solvents',
         'unit': 'kt C2F6/yr',
     }
-    run_check_agg_fail(check_aggregate_df, to_tweak, 'aggregate')
+    run_check_agg_fail(check_aggregate_df_iam, to_tweak, 'aggregate')
 
 
-def test_df_iam_check_aggregate_region_fail(check_aggregate_df):
+def test_df_iam_check_aggregate_region_fail(check_aggregate_df_iam):
     to_tweak = {
         'model': 'IMG',
         'scenario': 'a_scen_2',
@@ -370,10 +370,10 @@ def test_df_iam_check_aggregate_region_fail(check_aggregate_df):
         'unit': 'Mt CO2/yr',
     }
 
-    run_check_agg_fail(check_aggregate_df, to_tweak, 'region')
+    run_check_agg_fail(check_aggregate_df_iam, to_tweak, 'region')
 
 
-def test_df_iam_check_aggregate_region_fail_no_subsector(check_aggregate_df):
+def test_df_iam_check_aggregate_region_fail_no_subsector(check_aggregate_df_iam):
     to_tweak = {
         'model': 'MSG-GLB',
         'scenario': 'a_scen_2',
@@ -382,10 +382,10 @@ def test_df_iam_check_aggregate_region_fail_no_subsector(check_aggregate_df):
         'unit': 'Mt CH4/yr',
     }
 
-    run_check_agg_fail(check_aggregate_df, to_tweak, 'region')
+    run_check_agg_fail(check_aggregate_df_iam, to_tweak, 'region')
 
 
-def test_df_iam_check_aggregate_region_fail_world_only_var(check_aggregate_df):
+def test_df_iam_check_aggregate_region_fail_world_only_var(check_aggregate_df_iam):
     to_tweak = {
         'model': 'MSG-GLB',
         'scenario': 'a_scen_2',
@@ -395,15 +395,15 @@ def test_df_iam_check_aggregate_region_fail_world_only_var(check_aggregate_df):
     }
 
     run_check_agg_fail(
-        check_aggregate_df, to_tweak, 'region-world-only-contrib'
+        check_aggregate_df_iam, to_tweak, 'region-world-only-contrib'
     )
 
 
-def test_df_iam_check_aggregate_regions_errors(check_aggregate_regional_df):
+def test_df_iam_check_aggregate_regions_errors(check_aggregate_regional_df_iam):
     # these tests should fail because our dataframe has continents and regions
     # so checking without providing components leads to double counting and
     # hence failure
-    obs = check_aggregate_regional_df.check_aggregate_regions(
+    obs = check_aggregate_regional_df_iam.check_aggregate_regions(
         'Emissions|N2O', 'World'
     )
 
@@ -412,7 +412,7 @@ def test_df_iam_check_aggregate_regions_errors(check_aggregate_regional_df):
         'World', 'AIM', 'cscen', 'Emissions|N2O'
     )
 
-    obs = check_aggregate_regional_df.check_aggregate_regions(
+    obs = check_aggregate_regional_df_iam.check_aggregate_regions(
         'Emissions|N2O', 'REUROPE'
     )
 
@@ -422,62 +422,62 @@ def test_df_iam_check_aggregate_regions_errors(check_aggregate_regional_df):
     )
 
 
-def test_df_iam_check_aggregate_regions_components(check_aggregate_regional_df):
-    obs = check_aggregate_regional_df.check_aggregate_regions(
+def test_df_iam_check_aggregate_regions_components(check_aggregate_regional_df_iam):
+    obs = check_aggregate_regional_df_iam.check_aggregate_regions(
         'Emissions|N2O', 'World', components=['REUROPE', 'RASIA']
     )
     assert obs is None
 
-    obs = check_aggregate_regional_df.check_aggregate_regions(
+    obs = check_aggregate_regional_df_iam.check_aggregate_regions(
         'Emissions|N2O|Solvents', 'World', components=['REUROPE', 'RASIA']
     )
     assert obs is None
 
-    obs = check_aggregate_regional_df.check_aggregate_regions(
+    obs = check_aggregate_regional_df_iam.check_aggregate_regions(
         'Emissions|N2O', 'REUROPE', components=['Germany', 'UK']
     )
     assert obs is None
 
-    obs = check_aggregate_regional_df.check_aggregate_regions(
+    obs = check_aggregate_regional_df_iam.check_aggregate_regions(
         'Emissions|N2O|Transport', 'REUROPE', components=['Germany', 'UK']
     )
     assert obs is None
 
 
-def test_category_none(meta_df):
-    meta_df.categorize('category', 'Testing', {'Primary Energy': {'up': 0.8}})
-    assert 'category' not in meta_df.meta.columns
+def test_category_none(meta_df_iam):
+    meta_df_iam.categorize('category', 'Testing', {'Primary Energy': {'up': 0.8}})
+    assert 'category' not in meta_df_iam.meta.columns
 
 
-def test_category_pass(meta_df):
+def test_category_pass(meta_df_iam):
     dct = {'model': ['a_model', 'a_model'],
            'scenario': ['a_scenario', 'a_scenario2'],
            'category': ['foo', None]}
     exp = pd.DataFrame(dct).set_index(['model', 'scenario'])['category']
 
-    meta_df.categorize('category', 'foo', {'Primary Energy':
+    meta_df_iam.categorize('category', 'foo', {'Primary Energy':
                                            {'up': 6, 'year': 2010}})
-    obs = meta_df['category']
+    obs = meta_df_iam['category']
     pd.testing.assert_series_equal(obs, exp)
 
 
-def test_category_top_level(meta_df):
+def test_category_top_level(meta_df_iam):
     dct = {'model': ['a_model', 'a_model'],
            'scenario': ['a_scenario', 'a_scenario2'],
            'category': ['Testing', None]}
     exp = pd.DataFrame(dct).set_index(['model', 'scenario'])['category']
 
-    categorize(meta_df, 'category', 'Testing',
+    categorize(meta_df_iam, 'category', 'Testing',
                criteria={'Primary Energy': {'up': 6, 'year': 2010}},
                variable='Primary Energy')
-    obs = meta_df['category']
+    obs = meta_df_iam['category']
     pd.testing.assert_series_equal(obs, exp)
 
 
-def test_load_metadata(meta_df):
-    meta_df.load_metadata(os.path.join(
+def test_load_metadata(meta_df_iam):
+    meta_df_iam.load_metadata(os.path.join(
         TEST_DATA_DIR, 'testing_metadata.xlsx'), sheet_name='meta')
-    obs = meta_df.meta
+    obs = meta_df_iam.meta
 
     dct = {'model': ['a_model'] * 2, 'scenario': ['a_scenario', 'a_scenario2'],
            'category': ['imported', np.nan], 'exclude': [False, False]}
@@ -533,84 +533,84 @@ def test_interpolate(test_df_iam):
     assert not test_df_iam.filter(**variable).data.duplicated().any()
 
 
-def test_set_meta_no_name(meta_df):
+def test_set_meta_no_name(meta_df_iam):
     idx = pd.MultiIndex(levels=[['a_scenario'], ['a_model'], ['a_region']],
                         labels=[[0], [0], [0]],
                         names=['scenario', 'model', 'region'])
     s = pd.Series(data=[0.3], index=idx)
-    pytest.raises(ValueError, meta_df.set_meta, s)
+    pytest.raises(ValueError, meta_df_iam.set_meta, s)
 
 
-def test_set_meta_as_named_series(meta_df):
+def test_set_meta_as_named_series(meta_df_iam):
     idx = pd.MultiIndex(levels=[['a_scenario'], ['a_model'], ['a_region']],
                         labels=[[0], [0], [0]],
                         names=['scenario', 'model', 'region'])
 
     s = pd.Series(data=[0.3], index=idx)
     s.name = 'meta_values'
-    meta_df.set_meta(s)
+    meta_df_iam.set_meta(s)
 
     idx = pd.MultiIndex(levels=[['a_model'], ['a_scenario', 'a_scenario2']],
                         labels=[[0, 0], [0, 1]], names=['model', 'scenario'])
     exp = pd.Series(data=[0.3, np.nan], index=idx)
     exp.name = 'meta_values'
 
-    obs = meta_df['meta_values']
+    obs = meta_df_iam['meta_values']
     pd.testing.assert_series_equal(obs, exp)
 
 
-def test_set_meta_as_unnamed_series(meta_df):
+def test_set_meta_as_unnamed_series(meta_df_iam):
     idx = pd.MultiIndex(levels=[['a_scenario'], ['a_model'], ['a_region']],
                         labels=[[0], [0], [0]],
                         names=['scenario', 'model', 'region'])
 
     s = pd.Series(data=[0.3], index=idx)
-    meta_df.set_meta(s, name='meta_values')
+    meta_df_iam.set_meta(s, name='meta_values')
 
     idx = pd.MultiIndex(levels=[['a_model'], ['a_scenario', 'a_scenario2']],
                         labels=[[0, 0], [0, 1]], names=['model', 'scenario'])
     exp = pd.Series(data=[0.3, np.nan], index=idx)
     exp.name = 'meta_values'
 
-    obs = meta_df['meta_values']
+    obs = meta_df_iam['meta_values']
     pd.testing.assert_series_equal(obs, exp)
 
 
-def test_set_meta_non_unique_index_fail(meta_df):
+def test_set_meta_non_unique_index_fail(meta_df_iam):
     idx = pd.MultiIndex(levels=[['a_model'], ['a_scenario'], ['a', 'b']],
                         labels=[[0, 0], [0, 0], [0, 1]],
                         names=['model', 'scenario', 'region'])
     s = pd.Series([0.4, 0.5], idx)
-    pytest.raises(ValueError, meta_df.set_meta, s)
+    pytest.raises(ValueError, meta_df_iam.set_meta, s)
 
 
-def test_set_meta_non_existing_index_fail(meta_df):
+def test_set_meta_non_existing_index_fail(meta_df_iam):
     idx = pd.MultiIndex(levels=[['a_model', 'fail_model'],
                                 ['a_scenario', 'fail_scenario']],
                         labels=[[0, 1], [0, 1]], names=['model', 'scenario'])
     s = pd.Series([0.4, 0.5], idx)
-    pytest.raises(ValueError, meta_df.set_meta, s)
+    pytest.raises(ValueError, meta_df_iam.set_meta, s)
 
 
-def test_set_meta_by_df(meta_df):
+def test_set_meta_by_df(meta_df_iam):
     df = pd.DataFrame([
         ['a_model', 'a_scenario', 'a_region1', 1],
     ], columns=['model', 'scenario', 'region', 'col'])
 
-    meta_df.set_meta(meta=0.3, name='meta_values', index=df)
+    meta_df_iam.set_meta(meta=0.3, name='meta_values', index=df)
 
     idx = pd.MultiIndex(levels=[['a_model'], ['a_scenario', 'a_scenario2']],
                         labels=[[0, 0], [0, 1]], names=['model', 'scenario'])
     exp = pd.Series(data=[0.3, np.nan], index=idx)
     exp.name = 'meta_values'
 
-    obs = meta_df['meta_values']
+    obs = meta_df_iam['meta_values']
     pd.testing.assert_series_equal(obs, exp)
 
 
-def test_set_meta_as_series(meta_df):
+def test_set_meta_as_series(meta_df_iam):
     s = pd.Series([0.3, 0.4])
-    meta_df.set_meta(s, 'meta_series')
+    meta_df_iam.set_meta(s, 'meta_series')
 
     idx = pd.MultiIndex(levels=[['a_model'],
                                 ['a_scenario', 'a_scenario2']],
@@ -619,12 +619,12 @@ def test_set_meta_as_series(meta_df):
     exp = pd.Series(data=[0.3, 0.4], index=idx)
     exp.name = 'meta_series'
 
-    obs = meta_df['meta_series']
+    obs = meta_df_iam['meta_series']
     pd.testing.assert_series_equal(obs, exp)
 
 
-def test_set_meta_as_int(meta_df):
-    meta_df.set_meta(3.2, 'meta_int')
+def test_set_meta_as_int(meta_df_iam):
+    meta_df_iam.set_meta(3.2, 'meta_int')
 
     idx = pd.MultiIndex(levels=[['a_model'],
                                 ['a_scenario', 'a_scenario2']],
@@ -632,12 +632,12 @@ def test_set_meta_as_int(meta_df):
 
     exp = pd.Series(data=[3.2, 3.2], index=idx, name='meta_int')
 
-    obs = meta_df['meta_int']
+    obs = meta_df_iam['meta_int']
     pd.testing.assert_series_equal(obs, exp)
 
 
-def test_set_meta_as_str(meta_df):
-    meta_df.set_meta('testing', name='meta_str')
+def test_set_meta_as_str(meta_df_iam):
+    meta_df_iam.set_meta('testing', name='meta_str')
 
     idx = pd.MultiIndex(levels=[['a_model'],
                                 ['a_scenario', 'a_scenario2']],
@@ -645,35 +645,35 @@ def test_set_meta_as_str(meta_df):
 
     exp = pd.Series(data=['testing', 'testing'], index=idx, name='meta_str')
 
-    obs = meta_df['meta_str']
+    obs = meta_df_iam['meta_str']
     pd.testing.assert_series_equal(obs, exp)
 
 
-def test_set_meta_as_str_list(meta_df):
-    meta_df.set_meta(['testing', 'testing2'], name='category')
-    obs = meta_df.filter(category='testing')
+def test_set_meta_as_str_list(meta_df_iam):
+    meta_df_iam.set_meta(['testing', 'testing2'], name='category')
+    obs = meta_df_iam.filter(category='testing')
     assert obs['scenario'].unique() == 'a_scenario'
 
 
-def test_set_meta_as_str_by_index(meta_df):
+def test_set_meta_as_str_by_index(meta_df_iam):
     idx = pd.MultiIndex(levels=[['a_model'], ['a_scenario']],
                         labels=[[0], [0]], names=['model', 'scenario'])
 
-    meta_df.set_meta('foo', 'meta_str', idx)
+    meta_df_iam.set_meta('foo', 'meta_str', idx)
 
-    obs = pd.Series(meta_df['meta_str'].values)
+    obs = pd.Series(meta_df_iam['meta_str'].values)
     pd.testing.assert_series_equal(obs, pd.Series(['foo', None]))
 
 
-def test_filter_by_bool(meta_df):
-    meta_df.set_meta([True, False], name='exclude')
-    obs = meta_df.filter(exclude=True)
+def test_filter_by_bool(meta_df_iam):
+    meta_df_iam.set_meta([True, False], name='exclude')
+    obs = meta_df_iam.filter(exclude=True)
     assert obs['scenario'].unique() == 'a_scenario'
 
 
-def test_filter_by_int(meta_df):
-    meta_df.set_meta([1, 2], name='value')
-    obs = meta_df.filter(value=[1, 3])
+def test_filter_by_int(meta_df_iam):
+    meta_df_iam.set_meta([1, 2], name='value')
+    obs = meta_df_iam.filter(value=[1, 3])
     assert obs['scenario'].unique() == 'a_scenario'
 
 
@@ -683,32 +683,32 @@ def _r5_regions_exp(df):
     return df.data.reset_index(drop=True)
 
 
-def test_map_regions_r5(reg_df):
-    obs = reg_df.map_regions('r5_region').data
-    exp = _r5_regions_exp(reg_df)
+def test_map_regions_r5(reg_df_iam):
+    obs = reg_df_iam.map_regions('r5_region').data
+    exp = _r5_regions_exp(reg_df_iam)
     pd.testing.assert_frame_equal(obs, exp, check_index_type=False)
 
 
-def test_map_regions_r5_region_col(reg_df):
-    df = reg_df.filter(model='MESSAGE-GLOBIOM')
+def test_map_regions_r5_region_col(reg_df_iam):
+    df = reg_df_iam.filter(model='MESSAGE-GLOBIOM')
     obs = df.map_regions(
         'r5_region', region_col='MESSAGE-GLOBIOM.REGION').data
     exp = _r5_regions_exp(df)
     pd.testing.assert_frame_equal(obs, exp, check_index_type=False)
 
 
-def test_map_regions_r5_inplace(reg_df):
-    exp = _r5_regions_exp(reg_df)
-    reg_df.map_regions('r5_region', inplace=True)
-    obs = reg_df.data
+def test_map_regions_r5_inplace(reg_df_iam):
+    exp = _r5_regions_exp(reg_df_iam)
+    reg_df_iam.map_regions('r5_region', inplace=True)
+    obs = reg_df_iam.data
     pd.testing.assert_frame_equal(obs, exp, check_index_type=False)
 
 
-def test_map_regions_r5_agg(reg_df):
-    columns = reg_df.data.columns
-    obs = reg_df.map_regions('r5_region', agg='sum').data
+def test_map_regions_r5_agg(reg_df_iam):
+    columns = reg_df_iam.data.columns
+    obs = reg_df_iam.map_regions('r5_region', agg='sum').data
 
-    exp = _r5_regions_exp(reg_df)
+    exp = _r5_regions_exp(reg_df_iam)
     grp = list(columns)
     grp.remove('value')
     exp = exp.groupby(grp).sum().reset_index()
@@ -807,15 +807,15 @@ def test_rename_variable():
     pd.testing.assert_frame_equal(obs, exp, check_index_type=False)
 
 
-def test_rename_index_fail(meta_df):
+def test_rename_index_fail(meta_df_iam):
     mapping = {'scenario': {'a_scenario': 'a_scenario2'}}
-    pytest.raises(ValueError, meta_df.rename, mapping)
+    pytest.raises(ValueError, meta_df_iam.rename, mapping)
 
 
-def test_rename_index(meta_df):
+def test_rename_index(meta_df_iam):
     mapping = {'model': {'a_model': 'b_model'},
                'scenario': {'a_scenario': 'b_scen'}}
-    obs = meta_df.rename(mapping)
+    obs = meta_df_iam.rename(mapping)
 
     # test data changes
     exp = pd.DataFrame([
@@ -860,13 +860,13 @@ def test_convert_unit():
     pd.testing.assert_frame_equal(obs, exp, check_index_type=False)
 
 
-def test_pd_filter_by_meta(meta_df):
+def test_pd_filter_by_meta(meta_df_iam):
     data = df_filter_by_meta_matching_idx.set_index(['model', 'region'])
 
-    meta_df.set_meta([True, False], 'boolean')
-    meta_df.set_meta(0, 'integer')
+    meta_df_iam.set_meta([True, False], 'boolean')
+    meta_df_iam.set_meta(0, 'integer')
 
-    obs = filter_by_meta(data, meta_df, join_meta=True,
+    obs = filter_by_meta(data, meta_df_iam, join_meta=True,
                          boolean=True, integer=None)
     obs = obs.reindex(columns=['scenario', 'col', 'boolean', 'integer'])
 
@@ -877,13 +877,13 @@ def test_pd_filter_by_meta(meta_df):
     pd.testing.assert_frame_equal(obs, exp)
 
 
-def test_pd_filter_by_meta_no_index(meta_df):
+def test_pd_filter_by_meta_no_index(meta_df_iam):
     data = df_filter_by_meta_matching_idx
 
-    meta_df.set_meta([True, False], 'boolean')
-    meta_df.set_meta(0, 'int')
+    meta_df_iam.set_meta([True, False], 'boolean')
+    meta_df_iam.set_meta(0, 'int')
 
-    obs = filter_by_meta(data, meta_df, join_meta=True,
+    obs = filter_by_meta(data, meta_df_iam, join_meta=True,
                          boolean=True, int=None)
     obs = obs.reindex(columns=META_IDX + ['region', 'col', 'boolean', 'int'])
 
@@ -894,11 +894,11 @@ def test_pd_filter_by_meta_no_index(meta_df):
     pd.testing.assert_frame_equal(obs, exp)
 
 
-def test_pd_filter_by_meta_nonmatching_index(meta_df):
+def test_pd_filter_by_meta_nonmatching_index(meta_df_iam):
     data = df_filter_by_meta_nonmatching_idx
-    meta_df.set_meta(['a', 'b'], 'string')
+    meta_df_iam.set_meta(['a', 'b'], 'string')
 
-    obs = filter_by_meta(data, meta_df, join_meta=True, string='b')
+    obs = filter_by_meta(data, meta_df_iam, join_meta=True, string='b')
     obs = obs.reindex(columns=['scenario', 2010, 2020, 'string'])
 
     exp = data.iloc[2:3].copy()
@@ -907,11 +907,11 @@ def test_pd_filter_by_meta_nonmatching_index(meta_df):
     pd.testing.assert_frame_equal(obs, exp)
 
 
-def test_pd_join_by_meta_nonmatching_index(meta_df):
+def test_pd_join_by_meta_nonmatching_index(meta_df_iam):
     data = df_filter_by_meta_nonmatching_idx
-    meta_df.set_meta(['a', 'b'], 'string')
+    meta_df_iam.set_meta(['a', 'b'], 'string')
 
-    obs = filter_by_meta(data, meta_df, join_meta=True, string=None)
+    obs = filter_by_meta(data, meta_df_iam, join_meta=True, string=None)
     obs = obs.reindex(columns=['scenario', 2010, 2020, 'string'])
 
     exp = data.copy()
