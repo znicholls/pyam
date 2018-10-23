@@ -3,7 +3,7 @@ import pytest
 
 import pandas as pd
 
-from pyam import IamDataFrame
+from pyam import IamDataFrame, OpenSCMDataFrame
 
 here = os.path.dirname(os.path.realpath(__file__))
 IMAGE_BASELINE_DIR = os.path.join(here, 'expected_figs')
@@ -142,6 +142,11 @@ CHECK_AGG_REGIONAL_DF = pd.DataFrame([
 ],
     columns=['model', 'scenario', 'region', 'variable', 'unit', 2005, 2010],
 )
+
+
+@pytest.fixture(scope="function", params=[IamDataFrame, OpenSCMDataFrame])
+def pyam_df(request):
+    return request.param
 
 
 @pytest.fixture(scope="function")

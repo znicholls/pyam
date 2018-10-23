@@ -39,47 +39,11 @@ from pyam.utils import (
 from pyam.timeseries import fill_series
 
 
-class IamDataFrame(object):
-    """This class is a wrapper for dataframes following the IAMC format.
-    It provides a number of diagnostic features (including validation of data,
-    completeness of variables provided) as well as a number of visualization
-    and plotting tools.
+class _PyamDataFrame(object):
+    """Base class for pyam dataframes.
+
+    This class provides a number of data analysis tools, in particular data categorisation, filtering and visualistation tools
     """
-
-    def __init__(self, data, **kwargs):
-        """Initialize an instance of an IamDataFrame
-
-        Parameters
-        ----------
-        data: ixmp.TimeSeries, ixmp.Scenario, pd.DataFrame or data file
-            an instance of an TimeSeries or Scenario (requires `ixmp`),
-            or pd.DataFrame or data file with IAMC-format data columns.
-            A pd.DataFrame can have the required data as columns or index.
-
-            Special support is provided for data files downloaded directly from
-            IIASA SSP and RCP databases. If you run into any problems loading
-            data, please make an issue at:
-            https://github.com/IAMconsortium/pyam/issues
-        """
-        # import data from pd.DataFrame or read from source
-        if isinstance(data, pd.DataFrame):
-            self.data = format_data(data.copy())
-        elif has_ix and isinstance(data, ixmp.TimeSeries):
-            self.data = read_ix(data, **kwargs)
-        else:
-            self.data = read_files(data, **kwargs)
-
-        # cast year column to `int` if necessary
-        if not self.data.year.dtype == 'int64':
-            self.data.year = cast_years_to_int(self.data.year)
-
-        # define a dataframe for categorization and other metadata indicators
-        self.meta = self.data[META_IDX].drop_duplicates().set_index(META_IDX)
-        self.reset_exclude()
-
-        # execute user-defined code
-        if 'exec' in run_control():
-            self._execute_run_control()
 
     def __getitem__(self, key):
         _key_check = [key] if isstr(key) else key
@@ -97,21 +61,6 @@ class IamDataFrame(object):
 
     def __len__(self):
         return self.data.__len__()
-
-    def _execute_run_control(self):
-        for module_block in run_control()['exec']:
-            fname = module_block['file']
-            functions = module_block['functions']
-
-            dirname = os.path.dirname(fname)
-            if dirname:
-                sys.path.append(dirname)
-
-            module = os.path.basename(fname).split('.')[0]
-            mod = importlib.import_module(module)
-            for func in functions:
-                f = getattr(mod, func)
-                f(self)
 
     def head(self, *args, **kwargs):
         """Identical to pd.DataFrame.head() operating on data"""
@@ -238,96 +187,17 @@ class IamDataFrame(object):
         self.data = self.data.append(fill_values, ignore_index=True)
 
     def as_pandas(self, with_metadata=False):
-        """Return this as a pd.DataFrame
-
-        Parameters
-        ----------
-        with_metadata : bool, default False
-           if True, join data with existing metadata
-        """
-        df = self.data
-        if with_metadata:
-            df = (df
-                  .set_index(META_IDX)
-                  .join(self.meta)
-                  .reset_index()
-                  )
-        return df
+        raise NotImplementedError
 
     def timeseries(self):
-        """Returns a dataframe in the standard IAMC format
-        """
-        return (
-            self.data
-            .pivot_table(index=IAMC_IDX, columns='year')
-            .value  # column name
-            .rename_axis(None, axis=1)
-        )
+        raise NotImplementedError
 
     def reset_exclude(self):
         """Reset exclusion assignment for all scenarios to `exclude: False`"""
         self.meta['exclude'] = False
 
     def set_meta(self, meta, name=None, index=None):
-        """Add metadata columns as pd.Series, list or value (int/float/str)
-
-        Parameters
-        ----------
-        meta: pd.Series, list, int, float or str
-            column to be added to metadata
-            (by `['model', 'scenario']` index if possible)
-        name: str, optional
-            meta column name (defaults to meta pd.Series.name);
-            either a meta.name or the name kwarg must be defined
-        index: pyam.IamDataFrame, pd.DataFrame or pd.MultiIndex, optional
-            index to be used for setting meta column (`['model', 'scenario']`)
-        """
-        if (name or (hasattr(meta, 'name') and meta.name)) in [None, False]:
-            raise ValueError('Must pass a name or use a named pd.Series')
-
-        # check if meta has a valid index and use it for further workflow
-        if hasattr(meta, 'index') and hasattr(meta.index, 'names') \
-                and set(META_IDX).issubset(meta.index.names):
-            index = meta.index
-
-        # if no valid index is provided, add meta as new column `name` and exit
-        if index is None:
-            self.meta[name] = list(meta) if islistable(meta) else meta
-            return  # EXIT FUNCTION
-
-        # use meta.index if index arg is an IamDataFrame
-        if isinstance(index, IamDataFrame):
-            index = index.meta.index
-        # turn dataframe to index if index arg is a DataFrame
-        if isinstance(index, pd.DataFrame):
-            index = index.set_index(META_IDX).index
-        if not isinstance(index, pd.MultiIndex):
-            raise ValueError('index cannot be coerced to pd.MultiIndex')
-
-        # raise error if index is not unique
-        if index.duplicated().any():
-            raise ValueError("non-unique ['model', 'scenario'] index!")
-
-        # create pd.Series from meta, index and name if provided
-        meta = pd.Series(data=meta, index=index, name=name)
-        meta.name = name = name or meta.name
-
-        # reduce index dimensions to model-scenario only
-        meta = (
-            meta
-            .reset_index()
-            .reindex(columns=META_IDX + [name])
-            .set_index(META_IDX)
-        )
-
-        # check if trying to add model-scenario index not existing in self
-        diff = meta.index.difference(self.meta.index)
-        if not diff.empty:
-            error = "adding metadata for non-existing scenarios '{}'!"
-            raise ValueError(error.format(diff))
-
-        self._new_meta_column(name)
-        self.meta[name] = meta[name].combine_first(self.meta[name])
+        raise NotImplementedError
 
     def categorize(self, name, value, criteria,
                    color=None, marker=None, linestyle=None):
@@ -494,181 +364,6 @@ class IamDataFrame(object):
         if not inplace:
             return ret
 
-    def check_aggregate(self, variable, components=None, units=None,
-                        exclude_on_fail=False, multiplier=1, **kwargs):
-        """Check whether the timeseries data match the aggregation
-        of components or sub-categories
-
-        Parameters
-        ----------
-        variable: str
-            variable to be checked for matching aggregation of sub-categories
-        components: list of str, default None
-            list of variables, defaults to all sub-categories of `variable`
-        units: str or list of str, default None
-            filter variable and components for given unit(s)
-        exclude_on_fail: boolean, default False
-            flag scenarios failing validation as `exclude: True`
-        multiplier: number, default 1
-            factor when comparing variable and sum of components
-        kwargs: passed to `np.isclose()`
-        """
-        # default components to all variables one level below `variable`
-        if components is None:
-            components = self.filter(variable='{}|*'.format(variable),
-                                     level=0).variables()
-
-        if not len(components):
-            msg = '{} - cannot check aggregate because it has no components'
-            logger().info(msg.format(variable))
-
-            return
-
-        # filter and groupby data, use `pd.Series.align` for matching index
-        df_variable, df_components = (
-            _aggregate_by_variables(self.data, variable, units)
-            .align(_aggregate_by_variables(self.data, components, units))
-        )
-
-        # use `np.isclose` for checking match
-        diff = df_variable[~np.isclose(df_variable, multiplier * df_components,
-                                       **kwargs)]
-
-        if len(diff):
-            msg = '{} - {} of {} data points are not aggregates of components'
-            logger().info(msg.format(variable, len(diff), len(df_variable)))
-
-            if exclude_on_fail:
-                self._exclude_on_fail(diff.index.droplevel([2, 3]))
-
-            diff = pd.concat([diff], keys=[variable], names=['variable'])
-
-            return diff.unstack().rename_axis(None, axis=1)
-
-    def check_aggregate_regions(self, variable, region='World',
-                                components=None, units=None,
-                                exclude_on_fail=False, **kwargs):
-        """Check whether the region timeseries data match the aggregation
-        of components
-
-        Parameters
-        ----------
-        variable: str
-            variable to be checked for matching aggregation of components data
-        region: str
-            region to be checked for matching aggregation of components data
-        components: list of str, default None
-            list of regions, defaults to all regions except region
-        units: str or list of str, default None
-            filter variable and components for given unit(s)
-        exclude_on_fail: boolean, default False
-            flag scenarios failing validation as `exclude: True`
-        kwargs: passed to `np.isclose()`
-        """
-        var_df = self.filter(variable=variable, level=0)
-
-        if components is None:
-            components = var_df.filter(region=region, keep=False).regions()
-
-        if not len(components):
-            msg = (
-                '{} - cannot check regional aggregate because it has no '
-                'regional components'
-            )
-            logger().info(msg.format(variable))
-
-            return None
-
-        # filter and groupby data, use `pd.Series.align` for matching index
-        df_region, df_components = (
-            _aggregate_by_regions(var_df.data, region, units)
-            .align(_aggregate_by_regions(var_df.data, components, units))
-        )
-
-        df_components.index = df_components.index.droplevel(
-            "variable"
-        )
-
-        # Add in variables that are included in region totals but which
-        # aren't included in the regional components.
-        # For example, if we are looking at World and Emissions|BC, we need
-        # to add aviation and shipping to the sum of Emissions|BC for each
-        # of World's regional components to do a valid check.
-        different_region = components[0]
-        variable_components = self.filter(
-            variable="{}|*".format(variable)
-        ).variables()
-        for var_to_add in variable_components:
-            var_rows = self.data.variable == var_to_add
-            region_rows = self.data.region == different_region
-            var_has_regional_info = (var_rows & region_rows).any()
-            if not var_has_regional_info:
-                df_var_to_add = self.filter(
-                    region=region, variable=var_to_add
-                ).data.groupby(REGION_IDX).sum()['value']
-                df_var_to_add.index = df_var_to_add.index.droplevel("variable")
-
-                if len(df_var_to_add):
-                    df_components = df_components.add(df_var_to_add,
-                                                      fill_value=0)
-
-        df_components = pd.concat([df_components], keys=[variable],
-                                  names=['variable'])
-
-        # use `np.isclose` for checking match
-        diff = df_region[~np.isclose(df_region, df_components, **kwargs)]
-
-        if len(diff):
-            msg = (
-                '{} - {} of {} data points are not aggregates of regional '
-                'components'
-            )
-            logger().info(msg.format(variable, len(diff), len(df_region)))
-
-            if exclude_on_fail:
-                self._exclude_on_fail(diff.index.droplevel([2, 3]))
-
-            diff = pd.concat([diff], keys=[region], names=['region'])
-
-            return diff.unstack().rename_axis(None, axis=1)
-
-    def check_internal_consistency(self, **kwargs):
-        """Check whether the database is internally consistent
-
-        We check that all variables are equal to the sum of their sectoral
-        components and that all the regions add up to the World total. If
-        the check is passed, None is returned, otherwise a dictionary of
-        inconsistent variables is returned.
-
-        Note: at the moment, this method's regional checking is limited to
-        checking that all the regions sum to the World region. We cannot
-        make this more automatic unless we start to store how the regions
-        relate, see
-        [this issue](https://github.com/IAMconsortium/pyam/issues/106).
-
-        Parameters
-        ----------
-        kwargs: passed to `np.isclose()`
-        """
-        inconsistent_vars = {}
-        for variable in self.variables():
-            diff_agg = self.check_aggregate(variable, **kwargs)
-            if diff_agg is not None:
-                inconsistent_vars[variable + "-aggregate"] = diff_agg
-
-            diff_regional = self.check_aggregate_regions(variable, **kwargs)
-            if diff_regional is not None:
-                inconsistent_vars[variable + "-regional"] = diff_regional
-
-        return inconsistent_vars if inconsistent_vars else None
-
-    def _exclude_on_fail(self, df):
-        """Assign a selection of scenarios as `exclude: True` in meta"""
-        idx = df if isinstance(df, pd.MultiIndex) else _meta_idx(df)
-        self.meta.loc[idx, 'exclude'] = True
-        logger().info('{} non-valid scenario{} will be excluded'
-                      .format(len(idx), '' if len(idx) == 1 else 's'))
-
     def filter(self, filters=None, keep=True, inplace=False, **kwargs):
         """Return a filtered IamDataFrame (i.e., a subset of current data)
 
@@ -725,105 +420,6 @@ class IamDataFrame(object):
             self.data[col] = self.data[col].apply(func, *args, **kwargs)
         else:
             self.meta[col] = self.meta[col].apply(func, *args, **kwargs)
-
-    def _to_file_format(self):
-        """Return a dataframe suitable for writing to a file"""
-        df = self.timeseries().reset_index()
-        df = df.rename(columns={c: str(c).title() for c in df.columns})
-        return df
-
-    def to_csv(self, path, index=False, **kwargs):
-        """Write data to a csv file
-
-        Parameters
-        ----------
-        index: boolean, default False
-            write row names (index)
-        """
-        self._to_file_format().to_csv(path, index=False, **kwargs)
-
-    def to_excel(self, path=None, writer=None, sheet_name='data', index=False,
-                 **kwargs):
-        """Write timeseries data to Excel using the IAMC template convention
-        (wrapper for `pd.DataFrame.to_excel()`)
-
-        Parameters
-        ----------
-        excel_writer: string or ExcelWriter object
-             file path or existing ExcelWriter
-        sheet_name: string, default 'data'
-            name of the sheet that will contain the (filtered) IamDataFrame
-        index: boolean, default False
-            write row names (index)
-        """
-        if (path is None and writer is None) or \
-           (path is not None and writer is not None):
-            raise ValueError('Only one of path and writer must have a value')
-        if writer is None:
-            writer = pd.ExcelWriter(path)
-        self._to_file_format().to_excel(writer, sheet_name=sheet_name,
-                                        index=index, **kwargs)
-
-    def export_metadata(self, path):
-        """Export metadata to Excel
-
-        Parameters
-        ----------
-        path: string
-            path/filename for xlsx file of metadata export
-        """
-        writer = pd.ExcelWriter(path)
-        write_sheet(writer, 'meta', self.meta, index=True)
-        writer.save()
-
-    def load_metadata(self, path, *args, **kwargs):
-        """Load metadata exported from `pyam.IamDataFrame` instance
-
-        Parameters
-        ----------
-        path: string
-            xlsx file with metadata exported from `pyam.IamDataFrame` instance
-        """
-        if not os.path.exists(path):
-            raise ValueError("no metadata file '" + path + "' found!")
-
-        if path.endswith('csv'):
-            df = pd.read_csv(path, *args, **kwargs)
-        else:
-            xl = pd.ExcelFile(path)
-            if len(xl.sheet_names) > 1 and 'sheet_name' not in kwargs:
-                kwargs['sheet_name'] = 'meta'
-            df = pd.read_excel(path, *args, **kwargs)
-
-        req_cols = ['model', 'scenario', 'exclude']
-        if not set(req_cols).issubset(set(df.columns)):
-            e = 'File `{}` does not have required columns ({})!'
-            raise ValueError(e.format(path, req_cols))
-
-        # set index, filter to relevant scenarios from imported metadata file
-        df.set_index(META_IDX, inplace=True)
-        idx = self.meta.index.intersection(df.index)
-
-        n_invalid = len(df) - len(idx)
-        if n_invalid > 0:
-            msg = 'Ignoring {} scenario{} from imported metadata'
-            logger().info(msg.format(n_invalid, 's' if n_invalid > 1 else ''))
-
-        if idx.empty:
-            raise ValueError('No valid scenarios in imported metadata file!')
-
-        df = df.loc[idx]
-
-        # Merge in imported metadata
-        msg = 'Importing metadata for {} scenario{} (for total of {})'
-        logger().info(msg.format(len(df), 's' if len(df) > 1 else '',
-                                 len(self.meta)))
-
-        for col in df.columns:
-            self._new_meta_column(col)
-            self.meta[col] = df[col].combine_first(self.meta[col])
-        # set column `exclude` to bool
-        self.meta.exclude = self.meta.exclude.astype('bool')
 
     def line_plot(self, x='year', y='value', **kwargs):
         """Plot timeseries lines of existing data
@@ -1017,6 +613,448 @@ class IamDataFrame(object):
         df = self.as_pandas(with_metadata=True)
         ax = plotting.region_plot(df, **kwargs)
         return ax
+
+
+class IamDataFrame(_PyamDataFrame):
+    """This class is a wrapper for dataframes following the IAMC format.
+    It provides a number of diagnostic features (including validation of data,
+    completeness of variables provided) as well as a number of visualization
+    and plotting tools.
+    """
+
+    def __init__(self, data, **kwargs):
+        """Initialize an instance of an IamDataFrame
+
+        Parameters
+        ----------
+        data: ixmp.TimeSeries, ixmp.Scenario, pd.DataFrame or data file
+            an instance of an TimeSeries or Scenario (requires `ixmp`),
+            or pd.DataFrame or data file with IAMC-format data columns.
+            A pd.DataFrame can have the required data as columns or index.
+
+            Special support is provided for data files downloaded directly from
+            IIASA SSP and RCP databases. If you run into any problems loading
+            data, please make an issue at:
+            https://github.com/IAMconsortium/pyam/issues
+        """
+        # import data from pd.DataFrame or read from source
+        if isinstance(data, pd.DataFrame):
+            self.data = format_data(data.copy())
+        elif has_ix and isinstance(data, ixmp.TimeSeries):
+            self.data = read_ix(data, **kwargs)
+        else:
+            self.data = read_files(data, **kwargs)
+
+        # cast year column to `int` if necessary
+        if not self.data.year.dtype == 'int64':
+            self.data.year = cast_years_to_int(self.data.year)
+
+        # define a dataframe for categorization and other metadata indicators
+        self.meta = self.data[META_IDX].drop_duplicates().set_index(META_IDX)
+        self.reset_exclude()
+
+        # execute user-defined code
+        if 'exec' in run_control():
+            self._execute_run_control()
+
+    def _execute_run_control(self):
+        for module_block in run_control()['exec']:
+            fname = module_block['file']
+            functions = module_block['functions']
+
+            dirname = os.path.dirname(fname)
+            if dirname:
+                sys.path.append(dirname)
+
+            module = os.path.basename(fname).split('.')[0]
+            mod = importlib.import_module(module)
+            for func in functions:
+                f = getattr(mod, func)
+                f(self)
+
+    def as_pandas(self, with_metadata=False):
+        """Return this as a pd.DataFrame
+
+        Parameters
+        ----------
+        with_metadata : bool, default False
+           if True, join data with existing metadata
+        """
+        df = self.data
+        if with_metadata:
+            df = (df
+                  .set_index(META_IDX)
+                  .join(self.meta)
+                  .reset_index()
+                  )
+        return df
+
+    def timeseries(self):
+        """Returns a dataframe in the standard IAMC format
+        """
+        return (
+            self.data
+            .pivot_table(index=IAMC_IDX, columns='year')
+            .value  # column name
+            .rename_axis(None, axis=1)
+        )
+
+    def set_meta(self, meta, name=None, index=None):
+        """Add metadata columns as pd.Series, list or value (int/float/str)
+
+        Parameters
+        ----------
+        meta: pd.Series, list, int, float or str
+            column to be added to metadata
+            (by `['model', 'scenario']` index if possible)
+        name: str, optional
+            meta column name (defaults to meta pd.Series.name);
+            either a meta.name or the name kwarg must be defined
+        index: pyam.IamDataFrame, pd.DataFrame or pd.MultiIndex, optional
+            index to be used for setting meta column (`['model', 'scenario']`)
+        """
+        if (name or (hasattr(meta, 'name') and meta.name)) in [None, False]:
+            raise ValueError('Must pass a name or use a named pd.Series')
+
+        # check if meta has a valid index and use it for further workflow
+        if hasattr(meta, 'index') and hasattr(meta.index, 'names') \
+                and set(META_IDX).issubset(meta.index.names):
+            index = meta.index
+
+        # if no valid index is provided, add meta as new column `name` and exit
+        if index is None:
+            self.meta[name] = list(meta) if islistable(meta) else meta
+            return  # EXIT FUNCTION
+
+        # use meta.index if index arg is an IamDataFrame
+        if isinstance(index, IamDataFrame):
+            index = index.meta.index
+        # turn dataframe to index if index arg is a DataFrame
+        if isinstance(index, pd.DataFrame):
+            index = index.set_index(META_IDX).index
+        if not isinstance(index, pd.MultiIndex):
+            raise ValueError('index cannot be coerced to pd.MultiIndex')
+
+        # raise error if index is not unique
+        if index.duplicated().any():
+            raise ValueError("non-unique ['model', 'scenario'] index!")
+
+        # create pd.Series from meta, index and name if provided
+        meta = pd.Series(data=meta, index=index, name=name)
+        meta.name = name = name or meta.name
+
+        # reduce index dimensions to model-scenario only
+        meta = (
+            meta
+            .reset_index()
+            .reindex(columns=META_IDX + [name])
+            .set_index(META_IDX)
+        )
+
+        # check if trying to add model-scenario index not existing in self
+        diff = meta.index.difference(self.meta.index)
+        if not diff.empty:
+            error = "adding metadata for non-existing scenarios '{}'!"
+            raise ValueError(error.format(diff))
+
+        self._new_meta_column(name)
+        self.meta[name] = meta[name].combine_first(self.meta[name])
+
+    def check_aggregate(self, variable, components=None, units=None,
+                        exclude_on_fail=False, multiplier=1, **kwargs):
+        """Check whether the timeseries data match the aggregation
+        of components or sub-categories
+
+        Parameters
+        ----------
+        variable: str
+            variable to be checked for matching aggregation of sub-categories
+        components: list of str, default None
+            list of variables, defaults to all sub-categories of `variable`
+        units: str or list of str, default None
+            filter variable and components for given unit(s)
+        exclude_on_fail: boolean, default False
+            flag scenarios failing validation as `exclude: True`
+        multiplier: number, default 1
+            factor when comparing variable and sum of components
+        kwargs: passed to `np.isclose()`
+        """
+        # default components to all variables one level below `variable`
+        if components is None:
+            components = self.filter(variable='{}|*'.format(variable),
+                                     level=0).variables()
+
+        if not len(components):
+            msg = '{} - cannot check aggregate because it has no components'
+            logger().info(msg.format(variable))
+
+            return
+
+        # filter and groupby data, use `pd.Series.align` for matching index
+        df_variable, df_components = (
+            _aggregate_by_variables(self.data, variable, units)
+            .align(_aggregate_by_variables(self.data, components, units))
+        )
+
+        # use `np.isclose` for checking match
+        diff = df_variable[~np.isclose(df_variable, multiplier * df_components,
+                                       **kwargs)]
+
+        if len(diff):
+            msg = '{} - {} of {} data points are not aggregates of components'
+            logger().info(msg.format(variable, len(diff), len(df_variable)))
+
+            if exclude_on_fail:
+                self._exclude_on_fail(diff.index.droplevel([2, 3]))
+
+            diff = pd.concat([diff], keys=[variable], names=['variable'])
+
+            return diff.unstack().rename_axis(None, axis=1)
+
+    def check_aggregate_regions(self, variable, region='World',
+                                components=None, units=None,
+                                exclude_on_fail=False, **kwargs):
+        """Check whether the region timeseries data match the aggregation
+        of components
+
+        Parameters
+        ----------
+        variable: str
+            variable to be checked for matching aggregation of components data
+        region: str
+            region to be checked for matching aggregation of components data
+        components: list of str, default None
+            list of regions, defaults to all regions except region
+        units: str or list of str, default None
+            filter variable and components for given unit(s)
+        exclude_on_fail: boolean, default False
+            flag scenarios failing validation as `exclude: True`
+        kwargs: passed to `np.isclose()`
+        """
+        var_df = self.filter(variable=variable, level=0)
+
+        if components is None:
+            components = var_df.filter(region=region, keep=False).regions()
+
+        if not len(components):
+            msg = (
+                '{} - cannot check regional aggregate because it has no '
+                'regional components'
+            )
+            logger().info(msg.format(variable))
+
+            return None
+
+        # filter and groupby data, use `pd.Series.align` for matching index
+        df_region, df_components = (
+            _aggregate_by_regions(var_df.data, region, units)
+            .align(_aggregate_by_regions(var_df.data, components, units))
+        )
+
+        df_components.index = df_components.index.droplevel(
+            "variable"
+        )
+
+        # Add in variables that are included in region totals but which
+        # aren't included in the regional components.
+        # For example, if we are looking at World and Emissions|BC, we need
+        # to add aviation and shipping to the sum of Emissions|BC for each
+        # of World's regional components to do a valid check.
+        different_region = components[0]
+        variable_components = self.filter(
+            variable="{}|*".format(variable)
+        ).variables()
+        for var_to_add in variable_components:
+            var_rows = self.data.variable == var_to_add
+            region_rows = self.data.region == different_region
+            var_has_regional_info = (var_rows & region_rows).any()
+            if not var_has_regional_info:
+                df_var_to_add = self.filter(
+                    region=region, variable=var_to_add
+                ).data.groupby(REGION_IDX).sum()['value']
+                df_var_to_add.index = df_var_to_add.index.droplevel("variable")
+
+                if len(df_var_to_add):
+                    df_components = df_components.add(df_var_to_add,
+                                                      fill_value=0)
+
+        df_components = pd.concat([df_components], keys=[variable],
+                                  names=['variable'])
+
+        # use `np.isclose` for checking match
+        diff = df_region[~np.isclose(df_region, df_components, **kwargs)]
+
+        if len(diff):
+            msg = (
+                '{} - {} of {} data points are not aggregates of regional '
+                'components'
+            )
+            logger().info(msg.format(variable, len(diff), len(df_region)))
+
+            if exclude_on_fail:
+                self._exclude_on_fail(diff.index.droplevel([2, 3]))
+
+            diff = pd.concat([diff], keys=[region], names=['region'])
+
+            return diff.unstack().rename_axis(None, axis=1)
+
+    def check_internal_consistency(self, **kwargs):
+        """Check whether the database is internally consistent
+
+        We check that all variables are equal to the sum of their sectoral
+        components and that all the regions add up to the World total. If
+        the check is passed, None is returned, otherwise a dictionary of
+        inconsistent variables is returned.
+
+        Note: at the moment, this method's regional checking is limited to
+        checking that all the regions sum to the World region. We cannot
+        make this more automatic unless we start to store how the regions
+        relate, see
+        [this issue](https://github.com/IAMconsortium/pyam/issues/106).
+
+        Parameters
+        ----------
+        kwargs: passed to `np.isclose()`
+        """
+        inconsistent_vars = {}
+        for variable in self.variables():
+            diff_agg = self.check_aggregate(variable, **kwargs)
+            if diff_agg is not None:
+                inconsistent_vars[variable + "-aggregate"] = diff_agg
+
+            diff_regional = self.check_aggregate_regions(variable, **kwargs)
+            if diff_regional is not None:
+                inconsistent_vars[variable + "-regional"] = diff_regional
+
+        return inconsistent_vars if inconsistent_vars else None
+
+    def _exclude_on_fail(self, df):
+        """Assign a selection of scenarios as `exclude: True` in meta"""
+        idx = df if isinstance(df, pd.MultiIndex) else _meta_idx(df)
+        self.meta.loc[idx, 'exclude'] = True
+        logger().info('{} non-valid scenario{} will be excluded'
+                      .format(len(idx), '' if len(idx) == 1 else 's'))
+
+    def _to_file_format(self):
+        """Return a dataframe suitable for writing to a file"""
+        df = self.timeseries().reset_index()
+        df = df.rename(columns={c: str(c).title() for c in df.columns})
+        return df
+
+    def to_csv(self, path, index=False, **kwargs):
+        """Write data to a csv file
+
+        Parameters
+        ----------
+        index: boolean, default False
+            write row names (index)
+        """
+        self._to_file_format().to_csv(path, index=False, **kwargs)
+
+    def to_excel(self, path=None, writer=None, sheet_name='data', index=False,
+                 **kwargs):
+        """Write timeseries data to Excel using the IAMC template convention
+        (wrapper for `pd.DataFrame.to_excel()`)
+
+        Parameters
+        ----------
+        excel_writer: string or ExcelWriter object
+             file path or existing ExcelWriter
+        sheet_name: string, default 'data'
+            name of the sheet that will contain the (filtered) IamDataFrame
+        index: boolean, default False
+            write row names (index)
+        """
+        if (path is None and writer is None) or \
+           (path is not None and writer is not None):
+            raise ValueError('Only one of path and writer must have a value')
+        if writer is None:
+            writer = pd.ExcelWriter(path)
+        self._to_file_format().to_excel(writer, sheet_name=sheet_name,
+                                        index=index, **kwargs)
+
+    def export_metadata(self, path):
+        """Export metadata to Excel
+
+        Parameters
+        ----------
+        path: string
+            path/filename for xlsx file of metadata export
+        """
+        writer = pd.ExcelWriter(path)
+        write_sheet(writer, 'meta', self.meta, index=True)
+        writer.save()
+
+    def load_metadata(self, path, *args, **kwargs):
+        """Load metadata exported from `pyam.IamDataFrame` instance
+
+        Parameters
+        ----------
+        path: string
+            xlsx file with metadata exported from `pyam.IamDataFrame` instance
+        """
+        if not os.path.exists(path):
+            raise ValueError("no metadata file '" + path + "' found!")
+
+        if path.endswith('csv'):
+            df = pd.read_csv(path, *args, **kwargs)
+        else:
+            xl = pd.ExcelFile(path)
+            if len(xl.sheet_names) > 1 and 'sheet_name' not in kwargs:
+                kwargs['sheet_name'] = 'meta'
+            df = pd.read_excel(path, *args, **kwargs)
+
+        req_cols = ['model', 'scenario', 'exclude']
+        if not set(req_cols).issubset(set(df.columns)):
+            e = 'File `{}` does not have required columns ({})!'
+            raise ValueError(e.format(path, req_cols))
+
+        # set index, filter to relevant scenarios from imported metadata file
+        df.set_index(META_IDX, inplace=True)
+        idx = self.meta.index.intersection(df.index)
+
+        n_invalid = len(df) - len(idx)
+        if n_invalid > 0:
+            msg = 'Ignoring {} scenario{} from imported metadata'
+            logger().info(msg.format(n_invalid, 's' if n_invalid > 1 else ''))
+
+        if idx.empty:
+            raise ValueError('No valid scenarios in imported metadata file!')
+
+        df = df.loc[idx]
+
+        # Merge in imported metadata
+        msg = 'Importing metadata for {} scenario{} (for total of {})'
+        logger().info(msg.format(len(df), 's' if len(df) > 1 else '',
+                                 len(self.meta)))
+
+        for col in df.columns:
+            self._new_meta_column(col)
+            self.meta[col] = df[col].combine_first(self.meta[col])
+        # set column `exclude` to bool
+        self.meta.exclude = self.meta.exclude.astype('bool')
+
+    def to_openscm(self):
+        openscm = OpenSCMDataFrame()
+        openscm.data = self.data.rename(columns={"year": "time"})
+        openscm.meta = self.meta
+
+        return openscm
+
+
+class OpenSCMDataFrame(_PyamDataFrame):
+    """Base class for data following the OpenSCM
+    """
+    def __init__(self, data=None):
+        """Initialize an instance of an OpenSCMDataFrame
+
+        Parameters
+        ----------
+        data : :obj:`pd.DataFrame`
+            pd.DataFrame with IAMC-format data columns.
+        """
+        if data is not None:
+            self = IamDataFrame(data).to_openscm()
 
 
 def _meta_idx(data):
