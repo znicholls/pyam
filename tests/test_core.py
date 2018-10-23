@@ -34,19 +34,19 @@ def test_init_df_with_index(test_pd_df):
 
 
 def test_init_df_with_float_cols_raises(test_pd_df):
-    _test_df = test_pd_df.rename(columns={2005: 2005.5, 2010: 2010.})
-    pytest.raises(ValueError, IamDataFrame, data=_test_df)
+    _test_df_iam = test_pd_df.rename(columns={2005: 2005.5, 2010: 2010.})
+    pytest.raises(ValueError, IamDataFrame, data=_test_df_iam)
 
 
 def test_init_df_with_float_cols(test_pd_df):
-    _test_df = test_pd_df.rename(columns={2005: 2005., 2010: 2010.})
-    obs = IamDataFrame(_test_df).timeseries().reset_index()
+    _test_df_iam = test_pd_df.rename(columns={2005: 2005., 2010: 2010.})
+    obs = IamDataFrame(_test_df_iam).timeseries().reset_index()
     pd.testing.assert_series_equal(obs[2005], test_pd_df[2005])
 
 
-def test_init_df_from_timeseries(test_df):
-    df = IamDataFrame(test_df.timeseries())
-    pd.testing.assert_frame_equal(df.timeseries(), test_df.timeseries())
+def test_init_df_from_timeseries(test_df_iam):
+    df = IamDataFrame(test_df_iam.timeseries())
+    pd.testing.assert_frame_equal(df.timeseries(), test_df_iam.timeseries())
 
 
 def test_get_item(test_df):
@@ -147,12 +147,12 @@ def test_filter_by_regexp(meta_df):
     assert obs['scenario'].unique() == 'a_scenario'
 
 
-def test_timeseries(test_df):
+def test_timeseries(test_df_iam):
     dct = {'model': ['a_model'] * 2, 'scenario': ['a_scenario'] * 2,
            'years': [2005, 2010], 'value': [1, 6]}
     exp = pd.DataFrame(dct).pivot_table(index=['model', 'scenario'],
                                         columns=['years'], values='value')
-    obs = test_df.filter(variable='Primary Energy').timeseries()
+    obs = test_df_iam.filter(variable='Primary Energy').timeseries()
     npt.assert_array_equal(obs, exp)
 
 
@@ -280,7 +280,7 @@ def test_check_aggregate_top_level(meta_df):
     )
 
 
-def test_df_check_aggregate_pass(check_aggregate_df):
+def test_df_iam_check_aggregate_pass(check_aggregate_df):
     obs = check_aggregate_df.check_aggregate('Primary Energy')
     assert obs is None
 
@@ -289,7 +289,7 @@ def test_df_check_aggregate_pass(check_aggregate_df):
         assert obs is None
 
 
-def test_df_check_aggregate_regions_pass(check_aggregate_df):
+def test_df_iam_check_aggregate_regions_pass(check_aggregate_df):
     obs = check_aggregate_df.check_aggregate_regions('Primary Energy')
     assert obs is None
 
@@ -339,7 +339,7 @@ def run_check_agg_fail(pyam_df, tweak_dict, test_type):
             assert set(obs.index.get_values()[0]) == set(expected_index)
 
 
-def test_df_check_aggregate_fail(check_aggregate_df):
+def test_df_iam_check_aggregate_fail(check_aggregate_df):
     to_tweak = {
         'model': 'IMG',
         'scenario': 'a_scen_2',
@@ -350,7 +350,7 @@ def test_df_check_aggregate_fail(check_aggregate_df):
     run_check_agg_fail(check_aggregate_df, to_tweak, 'aggregate')
 
 
-def test_df_check_aggregate_fail_no_regions(check_aggregate_df):
+def test_df_iam_check_aggregate_fail_no_regions(check_aggregate_df):
     to_tweak = {
         'model': 'MSG-GLB',
         'scenario': 'a_scen_2',
@@ -361,7 +361,7 @@ def test_df_check_aggregate_fail_no_regions(check_aggregate_df):
     run_check_agg_fail(check_aggregate_df, to_tweak, 'aggregate')
 
 
-def test_df_check_aggregate_region_fail(check_aggregate_df):
+def test_df_iam_check_aggregate_region_fail(check_aggregate_df):
     to_tweak = {
         'model': 'IMG',
         'scenario': 'a_scen_2',
@@ -373,7 +373,7 @@ def test_df_check_aggregate_region_fail(check_aggregate_df):
     run_check_agg_fail(check_aggregate_df, to_tweak, 'region')
 
 
-def test_df_check_aggregate_region_fail_no_subsector(check_aggregate_df):
+def test_df_iam_check_aggregate_region_fail_no_subsector(check_aggregate_df):
     to_tweak = {
         'model': 'MSG-GLB',
         'scenario': 'a_scen_2',
@@ -385,7 +385,7 @@ def test_df_check_aggregate_region_fail_no_subsector(check_aggregate_df):
     run_check_agg_fail(check_aggregate_df, to_tweak, 'region')
 
 
-def test_df_check_aggregate_region_fail_world_only_var(check_aggregate_df):
+def test_df_iam_check_aggregate_region_fail_world_only_var(check_aggregate_df):
     to_tweak = {
         'model': 'MSG-GLB',
         'scenario': 'a_scen_2',
@@ -399,7 +399,7 @@ def test_df_check_aggregate_region_fail_world_only_var(check_aggregate_df):
     )
 
 
-def test_df_check_aggregate_regions_errors(check_aggregate_regional_df):
+def test_df_iam_check_aggregate_regions_errors(check_aggregate_regional_df):
     # these tests should fail because our dataframe has continents and regions
     # so checking without providing components leads to double counting and
     # hence failure
@@ -422,7 +422,7 @@ def test_df_check_aggregate_regions_errors(check_aggregate_regional_df):
     )
 
 
-def test_df_check_aggregate_regions_components(check_aggregate_regional_df):
+def test_df_iam_check_aggregate_regions_components(check_aggregate_regional_df):
     obs = check_aggregate_regional_df.check_aggregate_regions(
         'Emissions|N2O', 'World', components=['REUROPE', 'RASIA']
     )
@@ -486,26 +486,26 @@ def test_load_metadata(meta_df):
     pd.testing.assert_series_equal(obs['category'], exp['category'])
 
 
-def test_load_SSP_database_downloaded_file(test_df):
+def test_load_SSP_database_downloaded_file(test_df_iam):
     obs_df = IamDataFrame(os.path.join(
         TEST_DATA_DIR, 'test_SSP_database_raw_download.xlsx')
     )
-    pd.testing.assert_frame_equal(obs_df.as_pandas(), test_df.as_pandas())
+    pd.testing.assert_frame_equal(obs_df.as_pandas(), test_df_iam.as_pandas())
 
 
-def test_load_RCP_database_downloaded_file(test_df):
+def test_load_RCP_database_downloaded_file(test_df_iam):
     obs_df = IamDataFrame(os.path.join(
         TEST_DATA_DIR, 'test_RCP_database_raw_download.xlsx')
     )
-    pd.testing.assert_frame_equal(obs_df.as_pandas(), test_df.as_pandas())
+    pd.testing.assert_frame_equal(obs_df.as_pandas(), test_df_iam.as_pandas())
 
 
-def test_append(test_df):
-    df2 = test_df.append(other=os.path.join(
+def test_append(test_df_iam):
+    df2 = test_df_iam.append(other=os.path.join(
         TEST_DATA_DIR, 'testing_data_2.csv'))
 
     # check that the new meta.index is updated, but not the original one
-    obs = test_df.meta.index.get_level_values(1)
+    obs = test_df_iam.meta.index.get_level_values(1)
     npt.assert_array_equal(obs, ['a_scenario'])
 
     exp = ['a_scenario', 'append_scenario']
@@ -513,24 +513,24 @@ def test_append(test_df):
     npt.assert_array_equal(obs2, exp)
 
 
-def test_append_duplicates(test_df):
-    other = copy.deepcopy(test_df)
-    pytest.raises(ValueError, test_df.append, other=other)
+def test_append_duplicates(test_df_iam):
+    other = copy.deepcopy(test_df_iam)
+    pytest.raises(ValueError, test_df_iam.append, other=other)
 
 
-def test_interpolate(test_df):
-    test_df.interpolate(2007)
+def test_interpolate(test_df_iam):
+    test_df_iam.interpolate(2007)
     dct = {'model': ['a_model'] * 3, 'scenario': ['a_scenario'] * 3,
            'years': [2005, 2007, 2010], 'value': [1, 3, 6]}
     exp = pd.DataFrame(dct).pivot_table(index=['model', 'scenario'],
                                         columns=['years'], values='value')
     variable = {'variable': 'Primary Energy'}
-    obs = test_df.filter(**variable).timeseries()
+    obs = test_df_iam.filter(**variable).timeseries()
     npt.assert_array_equal(obs, exp)
 
     # redo the inpolation and check that no duplicates are added
-    test_df.interpolate(2007)
-    assert not test_df.filter(**variable).data.duplicated().any()
+    test_df_iam.interpolate(2007)
+    assert not test_df_iam.filter(**variable).data.duplicated().any()
 
 
 def test_set_meta_no_name(meta_df):

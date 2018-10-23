@@ -1054,7 +1054,9 @@ class OpenSCMDataFrame(_PyamDataFrame):
             pd.DataFrame with IAMC-format data columns.
         """
         if data is not None:
-            self = IamDataFrame(data).to_openscm()
+            openscm_df = IamDataFrame(data).to_openscm()
+            self.data = openscm_df.data
+            self.meta = openscm_df.meta
 
 
 def _meta_idx(data):

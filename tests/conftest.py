@@ -150,7 +150,13 @@ def pyam_df(request):
 
 
 @pytest.fixture(scope="function")
-def test_df():
+def test_df(pyam_df):
+    df = pyam_df(data=TEST_DF.iloc[:2])
+    yield df
+
+
+@pytest.fixture(scope="function")
+def test_df_iam():
     df = IamDataFrame(data=TEST_DF.iloc[:2])
     yield df
 
