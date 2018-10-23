@@ -180,7 +180,7 @@ def format_data(df):
     # format columns to lower-case and check that all required columns exist
     if not set(IAMC_IDX).issubset(set(df.columns)):
         missing = list(set(IAMC_IDX) - set(df.columns))
-        raise ValueError("missing required columns `{}`!".format(missing))
+        _raise_missing_required_column_error(missing)
 
     # check whether data in IAMC style or year/value layout
     if 'value' not in df.columns:
@@ -200,6 +200,8 @@ def format_data(df):
 
     return df
 
+def _raise_missing_required_column_error(missing):
+    raise ValueError("missing required columns `{}`!".format(missing))
 
 def style_df(df, style='heatmap'):
     if style == 'highlight_not_max':

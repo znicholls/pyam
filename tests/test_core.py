@@ -52,7 +52,7 @@ def test_init_df_from_timeseries(test_df_iam):
     pd.testing.assert_frame_equal(df.timeseries(), test_df_iam.timeseries())
 
 
-def test_get_item(test_df):
+def test_get_item_iam(test_df):
     assert test_df['model'].unique() == ['a_model']
 
 
@@ -923,6 +923,18 @@ def test_pd_join_by_meta_nonmatching_index(meta_df_iam):
     pd.testing.assert_frame_equal(obs.sort_index(level=1), exp)
 
 
+def test_worst_case_conversion_error_to_openscm(test_df_iam):
+    test_df_iam._get_openscm_df = MagicMock(side_effect=Exception("Test"))
+    error_msg = (
+        re.escape("I don't know why, but I can't convert to an OpenSCMDataFrame.")
+        + r"\n"
+        + re.escape("The original traceback is:")
+        + r"\n[\s\S]*Test[\s\S]*"
+    )
+    with pytest.raises(ConversionError, match=error_msg):
+        test_df_iam.to_openscm_df()
+
+
 def test_to_openscm_df(test_df_iam):
     exp = pd.DataFrame([
         ['a_model', 'a_scenario', 'World', 'Primary Energy', 'EJ/y', 2005, 1],
@@ -935,18 +947,6 @@ def test_to_openscm_df(test_df_iam):
 
     obs = test_df_iam.to_openscm_df()
     pd.testing.assert_frame_equal(obs.data, exp, check_index_type=False)
-
-
-def test_worst_case_conversion_error_to_openscm(test_df_iam):
-    test_df_iam._get_openscm_df = MagicMock(side_effect=Exception("Test"))
-    error_msg = (
-        re.escape("I don't know why, but I can't convert to an OpenSCMDataFrame.")
-        + r"\n"
-        + re.escape("The original traceback is:")
-        + r"\n[\s\S]*Test[\s\S]*"
-    )
-    with pytest.raises(ConversionError, match=error_msg):
-        test_df_iam.to_openscm_df()
 
 
 def test_to_from_openscm_df_loop(test_df_iam):
@@ -989,3 +989,20 @@ def test_to_from_iam_df_loop(test_df_openscm):
     exp_df = test_df_openscm.data.reset_index(drop=True)
     pd.testing.assert_frame_equal(obs.data, exp_df)
     pd.testing.assert_frame_equal(obs.meta, test_df_openscm.meta)
+
+
+def test_to_iam_df_missing_scenario(test_df_openscm):
+    test_df_openscm.data.drop("scenario", axis="columns", inplace=True)
+
+    error_msg = re.escape("missing required columns `['scenario']`!")
+    with pytest.raises(ConversionError, match=error_msg):
+        test_df_openscm.to_iam_df().to_openscm_df()
+
+
+def test_to_iam_df_missing_model(test_df_openscm):
+    test_df_openscm.data.drop("model", axis="columns", inplace=True)
+
+    error_msg = re.escape("missing required columns `['model']`!")
+    with pytest.raises(ConversionError, match=error_msg):
+        test_df_openscm.to_iam_df().to_openscm_df()
+

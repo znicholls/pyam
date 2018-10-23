@@ -25,6 +25,7 @@ from pyam.utils import (
     read_files,
     read_pandas,
     format_data,
+    _raise_missing_required_column_error,
     pattern_match,
     years_match,
     isstr,
@@ -1064,8 +1065,10 @@ class IamDataFrame(_PyamDataFrame):
         return openscm
 
     def _get_openscm_df(self):
-        return self.data.rename(columns={"year": "time"}).reset_index(drop=True)
-
+        openscm_df = self.data.copy()
+        # TODO: add error (?) here if "iam" column already exists
+        openscm_df.reset_index(drop=True, inplace=True)
+        return openscm_df.rename(columns={"year": "time"})
 
 
 class OpenSCMDataFrame(_PyamDataFrame):
@@ -1100,6 +1103,8 @@ class OpenSCMDataFrame(_PyamDataFrame):
         try:
             iam = IamDataFrame(self._get_iam_df())
             iam.meta = self.meta
+        except ValueError as ve:
+            raise ConversionError(str(ve))
         except Exception:
             worst_case_msg = (
                 "I don't know why, but I can't convert to an IamDataFrame.\n"
