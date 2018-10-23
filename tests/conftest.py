@@ -162,6 +162,12 @@ def test_df_iam():
 
 
 @pytest.fixture(scope="function")
+def test_df_openscm():
+    df = OpenSCMDataFrame(data=TEST_DF.iloc[:2])
+    yield df
+
+
+@pytest.fixture(scope="function")
 def test_pd_df():
     yield TEST_DF
 

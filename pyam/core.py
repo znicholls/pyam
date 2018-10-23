@@ -4,6 +4,7 @@ import itertools
 import os
 import sys
 import warnings
+import traceback
 
 import numpy as np
 import pandas as pd
@@ -37,6 +38,7 @@ from pyam.utils import (
     LONG_IDX,
 )
 from pyam.timeseries import fill_series
+from pyam.errors import ConversionError
 
 
 class _PyamDataFrame(object):
@@ -1034,12 +1036,36 @@ class IamDataFrame(_PyamDataFrame):
         # set column `exclude` to bool
         self.meta.exclude = self.meta.exclude.astype('bool')
 
-    def to_openscm(self):
-        openscm = OpenSCMDataFrame()
-        openscm.data = self.data.rename(columns={"year": "time"})
-        openscm.meta = self.meta
+    def to_openscm_df(self):
+        """Convert to an OpenSCMDataFrame
+
+        Returns
+        -------
+        :obj:`pyam.OpenSCMDataFrame`
+            An OpenSCM style data frame which is compatible with the
+            `openscm <https://github.com/openclimatedata/openscm/>`_ package.
+
+        Raises
+        ------
+        ConversionError
+            If conversion to OpenSCM dataframe is not possible
+        """
+        try:
+            openscm = OpenSCMDataFrame()
+            openscm.data = self._get_openscm_df()
+            openscm.meta = self.meta
+        except Exception:
+            worst_case_msg = (
+                "I don't know why, but I can't convert to an OpenSCMDataFrame.\n"
+                "The original traceback is:\n{}".format(traceback.format_exc())
+            )
+            raise ConversionError(worst_case_msg)
 
         return openscm
+
+    def _get_openscm_df(self):
+        return self.data.rename(columns={"year": "time"}).reset_index(drop=True)
+
 
 
 class OpenSCMDataFrame(_PyamDataFrame):
@@ -1054,9 +1080,37 @@ class OpenSCMDataFrame(_PyamDataFrame):
             pd.DataFrame with IAMC-format data columns.
         """
         if data is not None:
-            openscm_df = IamDataFrame(data).to_openscm()
+            openscm_df = IamDataFrame(data).to_openscm_df()
             self.data = openscm_df.data
             self.meta = openscm_df.meta
+
+    def to_iam_df(self):
+        """Convert to an IamDataFrame
+
+        Returns
+        -------
+        :obj:`pyam.IamDataFrame`
+            An IAMC style data frame.
+
+        Raises
+        ------
+        ConversionError
+            If conversion to IAM dataframe is not possible.
+        """
+        try:
+            iam = IamDataFrame(self._get_iam_df())
+            iam.meta = self.meta
+        except Exception:
+            worst_case_msg = (
+                "I don't know why, but I can't convert to an IamDataFrame.\n"
+                "The original traceback is:\n{}".format(traceback.format_exc())
+            )
+            raise ConversionError(worst_case_msg)
+
+        return iam
+
+    def _get_iam_df(self):
+        return self.data.rename(columns={"time": "year"}).reset_index(drop=True)
 
 
 def _meta_idx(data):

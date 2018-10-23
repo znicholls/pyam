@@ -1,6 +1,8 @@
 import os
 import copy
 import pytest
+import re
+from unittest.mock import MagicMock
 
 import numpy as np
 import pandas as pd
@@ -9,6 +11,7 @@ from numpy import testing as npt
 from pyam import IamDataFrame, plotting, validate, categorize, \
     require_variable, check_aggregate, filter_by_meta, META_IDX, IAMC_IDX
 from pyam.core import _meta_idx
+from pyam.errors import ConversionError
 
 from conftest import TEST_DATA_DIR
 
@@ -918,3 +921,71 @@ def test_pd_join_by_meta_nonmatching_index(meta_df_iam):
     exp['string'] = [np.nan, np.nan, 'b']
 
     pd.testing.assert_frame_equal(obs.sort_index(level=1), exp)
+
+
+def test_to_openscm_df(test_df_iam):
+    exp = pd.DataFrame([
+        ['a_model', 'a_scenario', 'World', 'Primary Energy', 'EJ/y', 2005, 1],
+        ['a_model', 'a_scenario', 'World', 'Primary Energy', 'EJ/y', 2010, 6.],
+        ['a_model', 'a_scenario', 'World', 'Primary Energy|Coal', 'EJ/y', 2005, 0.5],
+        ['a_model', 'a_scenario', 'World', 'Primary Energy|Coal', 'EJ/y', 2010, 3],
+    ],
+        columns=['model', 'scenario', 'region', 'variable', 'unit', 'time', 'value'],
+    )
+
+    obs = test_df_iam.to_openscm_df()
+    pd.testing.assert_frame_equal(obs.data, exp, check_index_type=False)
+
+
+def test_worst_case_conversion_error_to_openscm(test_df_iam):
+    test_df_iam._get_openscm_df = MagicMock(side_effect=Exception("Test"))
+    error_msg = (
+        re.escape("I don't know why, but I can't convert to an OpenSCMDataFrame.")
+        + r"\n"
+        + re.escape("The original traceback is:")
+        + r"\n[\s\S]*Test[\s\S]*"
+    )
+    with pytest.raises(ConversionError, match=error_msg):
+        test_df_iam.to_openscm_df()
+
+
+def test_to_from_openscm_df_loop(test_df_iam):
+    obs = test_df_iam.to_openscm_df().to_iam_df()
+
+    exp_df = test_df_iam.data.reset_index(drop=True)
+    pd.testing.assert_frame_equal(obs.data, exp_df)
+    pd.testing.assert_frame_equal(obs.meta, test_df_iam.meta)
+
+
+def test_to_iam_df(test_df_openscm):
+    exp = pd.DataFrame([
+        ['a_model', 'a_scenario', 'World', 'Primary Energy', 'EJ/y', 2005, 1],
+        ['a_model', 'a_scenario', 'World', 'Primary Energy', 'EJ/y', 2010, 6.],
+        ['a_model', 'a_scenario', 'World', 'Primary Energy|Coal', 'EJ/y', 2005, 0.5],
+        ['a_model', 'a_scenario', 'World', 'Primary Energy|Coal', 'EJ/y', 2010, 3],
+    ],
+        columns=['model', 'scenario', 'region', 'variable', 'unit', 'year', 'value'],
+    )
+
+    obs = test_df_openscm.to_iam_df()
+    pd.testing.assert_frame_equal(obs.data, exp, check_index_type=False)
+
+
+def test_worst_case_conversion_error_to_iam(test_df_openscm):
+    test_df_openscm._get_iam_df = MagicMock(side_effect=Exception("Test"))
+    error_msg = (
+        re.escape("I don't know why, but I can't convert to an IamDataFrame.")
+        + r"\n"
+        + re.escape("The original traceback is:")
+        + r"\n[\s\S]*Test[\s\S]*"
+    )
+    with pytest.raises(ConversionError, match=error_msg):
+        test_df_openscm.to_iam_df()
+
+
+def test_to_from_iam_df_loop(test_df_openscm):
+    obs = test_df_openscm.to_iam_df().to_openscm_df()
+
+    exp_df = test_df_openscm.data.reset_index(drop=True)
+    pd.testing.assert_frame_equal(obs.data, exp_df)
+    pd.testing.assert_frame_equal(obs.meta, test_df_openscm.meta)
