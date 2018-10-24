@@ -966,8 +966,9 @@ def test_openscm_df_rename(test_df_openscm):
     assert (test_df_openscm.models() == "b_model").all()
 
 
-def test_worst_case_conversion_error_to_openscm(test_df_iam):
-    test_df_iam._get_openscm_df_data_and_metadata = Mock(side_effect=Exception("Test"))
+@pytest.mark.parametrize("error_cls", [Exception, KeyError, AttributeError])
+def test_worst_case_conversion_error_to_openscm(test_df_iam, error_cls):
+    test_df_iam._get_openscm_df_data_except_year_renaming_and_metadata = Mock(side_effect=error_cls("Test"))
     error_msg = (
         re.escape("I don't know why, but I can't convert to an OpenSCMDataFrame.")
         + r"\n"
@@ -1016,7 +1017,7 @@ def test_to_iam_df(test_df_openscm):
 
 
 def test_worst_case_conversion_error_to_iam(test_df_openscm):
-    test_df_openscm._get_iam_df = Mock(side_effect=Exception("Test"))
+    test_df_openscm._get_iam_df_data_and_metadata = Mock(side_effect=Exception("Test"))
     error_msg = (
         re.escape("I don't know why, but I can't convert to an IamDataFrame.")
         + r"\n"
