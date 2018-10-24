@@ -2,14 +2,15 @@ import os
 import copy
 import pytest
 import re
-from unittest.mock import MagicMock
+from unittest.mock import Mock
 
 import numpy as np
 import pandas as pd
 from numpy import testing as npt
 
-from pyam import IamDataFrame, plotting, validate, categorize, \
-    require_variable, check_aggregate, filter_by_meta, META_IDX, IAMC_IDX
+from pyam import (IamDataFrame, OpenSCMDataFrame, plotting, validate, categorize,
+                  require_variable, check_aggregate, filter_by_meta, META_IDX,
+                  IAMC_IDX)
 from pyam.core import _meta_idx
 from pyam.errors import ConversionError
 
@@ -923,8 +924,50 @@ def test_pd_join_by_meta_nonmatching_index(meta_df_iam):
     pd.testing.assert_frame_equal(obs.sort_index(level=1), exp)
 
 
+@pytest.mark.xfail(reason="cast_years_to_int isn't actually casting, rather just checking that if you cast years to int, you end up with the same thing, without actually returning the cast values")
+def test_iam_df_year_axis_to_int(test_df_iam):
+    float_time_df = test_df_iam.data.copy()
+    float_time_df.year = float_time_df.year.astype(float)
+    test_df = IamDataFrame(data=float_time_df)
+
+    # see here for explanation of numpy data type hierarchy
+    # https://docs.scipy.org/doc/numpy/reference/arrays.scalars.html
+    # the first assertion is a sanity check
+    assert test_df_iam.data.year.dtype <= np.integer
+    assert test_df.data.year.dtype <= np.integer
+
+def test_iam_df_year_axis_must_be_int_like(float_time_pd_df):
+    # int_like because of comment above re what `cast_years_to_int` actually does
+    with pytest.raises(ValueError, match=re.escape("invalid values ") + r"`.*`"):
+        test_df = IamDataFrame(data=float_time_pd_df)
+
+
+def test_iam_df_time_axis_input_error(float_time_pd_df):
+    float_time_pd_df.rename({"year": "time"}, axis="columns", inplace=True)
+    with pytest.raises(ValueError):
+        test_df = IamDataFrame(data=float_time_pd_df)
+
+
+def test_openscm_df_time_axis_is_float(float_time_pd_df):
+    float_time_pd_df.rename({"year": "time"}, axis="columns", inplace=True)
+    test_df = OpenSCMDataFrame(data=float_time_pd_df)
+    assert test_df.data.time.dtype <= np.float
+
+
+def test_openscm_df_year_axis_input_conversion(float_time_pd_df):
+    test_df = OpenSCMDataFrame(data=float_time_pd_df)
+    assert test_df.data.time.dtype <= np.float
+    assert "year" not in test_df.data.columns
+
+
+@pytest.mark.xfail(reason="rename requires using LONG_IDX which contains year key")
+def test_openscm_df_rename(test_df_openscm):
+    test_df_openscm.rename({"model": {"a_model": "b_model"}})
+    assert (test_df_openscm.models() == "b_model").all()
+
+
 def test_worst_case_conversion_error_to_openscm(test_df_iam):
-    test_df_iam._get_openscm_df = MagicMock(side_effect=Exception("Test"))
+    test_df_iam._get_openscm_df_data_and_metadata = Mock(side_effect=Exception("Test"))
     error_msg = (
         re.escape("I don't know why, but I can't convert to an OpenSCMDataFrame.")
         + r"\n"
@@ -937,15 +980,16 @@ def test_worst_case_conversion_error_to_openscm(test_df_iam):
 
 def test_to_openscm_df(test_df_iam):
     exp = pd.DataFrame([
-        ['a_model', 'a_scenario', 'World', 'Primary Energy', 'EJ/y', 2005, 1],
-        ['a_model', 'a_scenario', 'World', 'Primary Energy', 'EJ/y', 2010, 6.],
-        ['a_model', 'a_scenario', 'World', 'Primary Energy|Coal', 'EJ/y', 2005, 0.5],
-        ['a_model', 'a_scenario', 'World', 'Primary Energy|Coal', 'EJ/y', 2010, 3],
+        ['N/A', 'a_scenario|a_model', 'World', 'Primary Energy', 'EJ/y', 2005, 1],
+        ['N/A', 'a_scenario|a_model', 'World', 'Primary Energy', 'EJ/y', 2010, 6.],
+        ['N/A', 'a_scenario|a_model', 'World', 'Primary Energy|Coal', 'EJ/y', 2005, 0.5],
+        ['N/A', 'a_scenario|a_model', 'World', 'Primary Energy|Coal', 'EJ/y', 2010, 3],
     ],
         columns=['model', 'scenario', 'region', 'variable', 'unit', 'time', 'value'],
     )
 
     obs = test_df_iam.to_openscm_df()
+    assert obs.data.time.dtype <= np.float
     pd.testing.assert_frame_equal(obs.data, exp, check_index_type=False)
 
 
@@ -959,10 +1003,10 @@ def test_to_from_openscm_df_loop(test_df_iam):
 
 def test_to_iam_df(test_df_openscm):
     exp = pd.DataFrame([
-        ['a_model', 'a_scenario', 'World', 'Primary Energy', 'EJ/y', 2005, 1],
-        ['a_model', 'a_scenario', 'World', 'Primary Energy', 'EJ/y', 2010, 6.],
-        ['a_model', 'a_scenario', 'World', 'Primary Energy|Coal', 'EJ/y', 2005, 0.5],
-        ['a_model', 'a_scenario', 'World', 'Primary Energy|Coal', 'EJ/y', 2010, 3],
+        ['N/A', 'a_scenario', 'World', 'Diagnostics|a_model|Primary Energy', 'EJ/y', 2005, 1],
+        ['N/A', 'a_scenario', 'World', 'Diagnostics|a_model|Primary Energy', 'EJ/y', 2010, 6.],
+        ['N/A', 'a_scenario', 'World', 'Diagnostics|a_model|Primary Energy|Coal', 'EJ/y', 2005, 0.5],
+        ['N/A', 'a_scenario', 'World', 'Diagnostics|a_model|Primary Energy|Coal', 'EJ/y', 2010, 3],
     ],
         columns=['model', 'scenario', 'region', 'variable', 'unit', 'year', 'value'],
     )
@@ -972,7 +1016,7 @@ def test_to_iam_df(test_df_openscm):
 
 
 def test_worst_case_conversion_error_to_iam(test_df_openscm):
-    test_df_openscm._get_iam_df = MagicMock(side_effect=Exception("Test"))
+    test_df_openscm._get_iam_df = Mock(side_effect=Exception("Test"))
     error_msg = (
         re.escape("I don't know why, but I can't convert to an IamDataFrame.")
         + r"\n"

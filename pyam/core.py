@@ -71,10 +71,6 @@ class _PyamDataFrame(object):
         else:
             self.data = read_files(data, **kwargs)
 
-        # cast year column to `int` if necessary
-        if not self.data.year.dtype == 'int64':
-            self.data.year = cast_years_to_int(self.data.year)
-
         # define a dataframe for categorization and other metadata indicators
         self.meta = self.data[META_IDX].drop_duplicates().set_index(META_IDX)
         self.reset_exclude()
@@ -1074,10 +1070,8 @@ class IamDataFrame(_PyamDataFrame):
             If conversion to OpenSCM dataframe is not possible
         """
         try:
-            openscm = OpenSCMDataFrame()
-            data, meta = self._get_openscm_data_and_metadata()
-
-            openscm.data = data
+            data, meta = self._get_openscm_df_data_and_metadata()
+            openscm = OpenSCMDataFrame(data)
             openscm.meta = meta
         except Exception:
             worst_case_msg = (
@@ -1088,13 +1082,13 @@ class IamDataFrame(_PyamDataFrame):
 
         return openscm
 
-    def _get_openscm_data_and_metadata(self):
+    def _get_openscm_df_data_and_metadata(self):
         conv = copy.deepcopy(self)
 
         model_scen_combos = conv[META_IDX].drop_duplicates()
         scenarios = model_scen_combos.scenario
         models = model_scen_combos.model
-        openscm_scens = (models + "|" + scenarios).tolist()
+        openscm_scens = (scenarios + "|" + models).tolist()
         openscm_models = ["N/A"] * len(models)
 
         renamings = {
@@ -1107,8 +1101,14 @@ class IamDataFrame(_PyamDataFrame):
 
 
 class OpenSCMDataFrame(_PyamDataFrame):
-    """Base class for data following the OpenSCM
+    """Base class for data following the OpenSCM format.
     """
+
+    def __init__(self, data, **kwargs):
+        super().__init__(data, **kwargs)
+
+        self.data.rename({"year": "time"}, axis="columns", inplace=True)
+
     def to_iam_df(self):
         """Convert to an IamDataFrame
 
@@ -1123,8 +1123,9 @@ class OpenSCMDataFrame(_PyamDataFrame):
             If conversion to IAM dataframe is not possible.
         """
         try:
-            iam = IamDataFrame(self._get_iam_df())
-            iam.meta = self.meta
+            data, meta = self._get_iam_df_data_and_metadata()
+            iam = IamDataFrame(data)
+            iam.meta = meta
         except ValueError as ve:
             raise ConversionError(str(ve))
         except Exception:
@@ -1136,9 +1137,25 @@ class OpenSCMDataFrame(_PyamDataFrame):
 
         return iam
 
-    def _get_iam_df(self):
-        return self.data.rename(columns={"time": "year"}).reset_index(drop=True)
+    def _get_iam_df_data_and_metadata(self):
+        conv = copy.deepcopy(self)
 
+        openscm_scenarios = conv.scenarios().tolist()
+        openscm_models = conv.models().tolist()
+        if any([m != "N/A" for m in openscm_models]):
+            raise NotImplementedError("Putting climate model info into variables not done yet")
+
+        iam_scens = [s.split("|")[0] for s in openscm_scenarios]
+        iam_models = [s.split("|")[1] for s in openscm_scenarios]
+
+        renamings = {
+            "scenario": dict(zip(openscm_scenarios, iam_scens)),
+            "model": dict(zip(openscm_models, iam_models)),
+        }
+
+        conv.data.rename({"time": "year"}, axis="columns", inplace=True)
+        conv.rename(renamings, inplace=True)
+        return conv.data.reset_index(drop=True), conv.meta
 
 def _meta_idx(data):
     return data[META_IDX].drop_duplicates().set_index(META_IDX).index

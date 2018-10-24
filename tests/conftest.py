@@ -200,3 +200,12 @@ def reg_df_iam():
 def plot_df_iam():
     df = IamDataFrame(data=os.path.join(TEST_DATA_DIR, 'plot_data.csv'))
     yield df
+
+
+@pytest.fixture(scope="function")
+def float_time_pd_df():
+    return pd.DataFrame([
+        ['a_model', 'a_scenario', 'World', 'Primary Energy', 'EJ/y', 1, 6.],
+    ],
+        columns=['model', 'scenario', 'region', 'variable', 'unit', 2005.5, 2010.5],
+    )
