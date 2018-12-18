@@ -144,6 +144,26 @@ CHECK_AGG_REGIONAL_DF = pd.DataFrame([
 )
 
 
+AGG_DF = pd.DataFrame([
+    ['AIM', 'cscen', 'World', 'Emissions|N2O|Shipping', 'Mt N/yr', 1, 6],
+    ['AIM', 'cscen', 'World', 'Emissions|N2O|Solvents', 'Mt N/yr', 1.6, 3.8],
+    ['AIM', 'cscen', 'World', 'Emissions|N2O|Transport', 'Mt N/yr', -0.8, 5.8],
+    ['AIM', 'cscen', 'RASIA', 'Emissions|N2O|Solvents', 'Mt N/yr', 0.8, 2.6],
+    ['AIM', 'cscen', 'RASIA', 'Emissions|N2O|Transport', 'Mt N/yr', -0.8, 3.3],
+    ['AIM', 'cscen', 'REUROPE', 'Emissions|N2O|Solvents', 'Mt N/yr', 0.8, 1.2],
+    ['AIM', 'cscen', 'REUROPE', 'Emissions|N2O|Transport', 'Mt N/yr', 0, 2.5],
+    ['AIM', 'cscen', 'World', 'Emissions|CH4|Shipping', 'Mt CH4/yr', 1, 6],
+    ['AIM', 'cscen', 'World', 'Emissions|CH4|Energy', 'Mt CH4/yr', 1.2, 5.8],
+    ['AIM', 'cscen', 'World', 'Emissions|CH4|Transport', 'Mt CH4/yr', -0.2, 2.8],
+    ['AIM', 'cscen', 'RASIA', 'Emissions|CH4|Energy', 'Mt CH4/yr', 3.8, 1.6],
+    ['AIM', 'cscen', 'RASIA', 'Emissions|CH4|Transport', 'Mt CH4/yr', -4.8, 2.3],
+    ['AIM', 'cscen', 'REUROPE', 'Emissions|CH4|Energy', 'Mt CH4/yr', 3.8, 5.2],
+    ['AIM', 'cscen', 'REUROPE', 'Emissions|CH4|Transport', 'Mt CH4/yr', 2, 1.5],
+],
+    columns=['model', 'scenario', 'region', 'variable', 'unit', 2005, 2010],
+)
+
+
 @pytest.fixture(scope="function")
 def test_df():
     df = IamDataFrame(data=TEST_DF.iloc[:2])
@@ -170,6 +190,12 @@ def check_aggregate_df():
 @pytest.fixture(scope="function")
 def check_aggregate_regional_df():
     df = IamDataFrame(data=CHECK_AGG_REGIONAL_DF)
+    yield df
+
+
+@pytest.fixture(scope="function")
+def aggregate_df():
+    df = IamDataFrame(data=AGG_DF)
     yield df
 
 

@@ -980,3 +980,25 @@ def test_pd_join_by_meta_nonmatching_index(meta_df):
     exp['string'] = [np.nan, np.nan, 'b']
 
     pd.testing.assert_frame_equal(obs.sort_index(level=1), exp)
+
+
+def test_aggregate(aggregate_df):
+    res = aggregate_df.aggregate(
+        variables=["Emissions|*|Shipping", "Emissions|*|Transport",
+                   "Emissions|*|Energy"]
+    )
+
+    obs = pd.DataFrame([
+        # duplicating e.g. Emissions|N2O makes it easier to track where they've come
+        # from, can always strip for plotting etc.
+        ['AIM', 'cscen', 'World', 'Emissions|N2O|Shipping, Emissions|N2O|Transport', 'Mt N/yr', 0.2, 11.8],
+        ['AIM', 'cscen', 'RASIA', 'Emissions|N2O|Transport', 'Mt N/yr', -0.8, 3.3],
+        ['AIM', 'cscen', 'REUROPE', 'Emissions|N2O|Transport', 'Mt N/yr', 0, 2.5],
+        ['AIM', 'cscen', 'World', 'Emissions|CH4|Shipping, Emissions|CH4|Transport, Emissions|CH4|Energy', 'Mt CH4/yr', 2, 14.6],
+        ['AIM', 'cscen', 'RASIA', 'Emissions|CH4|Transport, Emissions|CH4|Energy', 'Mt CH4/yr', -1, 3.9],
+        ['AIM', 'cscen', 'REUROPE', 'Emissions|CH4|Transport, Emissions|CH4|Energy', 'Mt CH4/yr', 5.8, 7.7],
+    ],
+        columns=['model', 'scenario', 'region', 'variable', 'unit', 2005, 2010],
+    )
+
+    pd.testing.assert_frame_equal(res, obs)
