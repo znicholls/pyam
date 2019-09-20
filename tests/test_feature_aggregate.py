@@ -80,6 +80,15 @@ def test_check_aggregate_pass(check_aggregate_df):
     assert obs is None
 
 
+def test_check_internal_consistency_no_world_for_variable_error(check_aggregate_df):
+    assert check_aggregate_df.check_internal_consistency() is None
+    test_df = check_aggregate_df.filter(
+        variable='Emissions|CH4', region='World', keep=False
+    )
+    # what should happen here? at the moment it's a cryptic error..
+    test_df.check_internal_consistency()
+
+
 def test_check_aggregate_fail(meta_df):
     obs = meta_df.check_aggregate('Primary Energy', exclude_on_fail=True)
     assert len(obs.columns) == 2
@@ -255,3 +264,9 @@ def test_df_check_aggregate_region_components(check_aggregate_regional_df):
         'Emissions|N2O|Transport', 'REUROPE', subregions=['Germany', 'UK']
     )
     assert obs is None
+
+
+def test_check_aggregate_region_no_world(check_aggregate_regional_df):
+    test_df = check_aggregate_regional_df.filter(region='World', keep=False)
+    # what do we want to happen here, at the moment the error is cryptic?
+    test_df.check_aggregate_region('Emissions|N2O', region='World')
