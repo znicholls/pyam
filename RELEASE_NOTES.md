@@ -1,8 +1,9 @@
 
 # Next Release
 
+- [#270](https://github.com/IAMconsortium/pyam/pull/270) Include variables with zeros in `stack_plot`  (see [#266](https://github.com/IAMconsortium/pyam/issues/266))
 - [#269](https://github.com/IAMconsortium/pyam/pull/269) Ensure append doesn't accidentally swap indexes
-- [#268](https://github.com/IAMconsortium/pyam/pull/268) Update `aggregate_region` so it can find variables below sub-cateogories too
+- [#268](https://github.com/IAMconsortium/pyam/pull/268) Update `aggregate_region` so it can find variables below sub-categories too
 - [#267](https://github.com/IAMconsortium/pyam/pull/267) Make clear error message if variable-region pair is missing when `check_aggregate_region` is called
 - [#261](https://github.com/IAMconsortium/pyam/pull/261) Add a check that `keep` in `filter()` is a boolean
 - [#254](https://github.com/IAMconsortium/pyam/pull/254) Hotfix for aggregating missing regions and filtering empty dataframes

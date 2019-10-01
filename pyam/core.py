@@ -817,8 +817,9 @@ class IamDataFrame(object):
         subregions: list of str
             list of subregions, defaults to all regions other than `region`
         components: list of str
-            list of variables, defaults to all sub-categories of `variable`
-            included in `region` but not in any of `subregions`
+            list of variables to include in the aggregate from the `region`
+            level, defaults to all sub-categories of `variable` included in
+            `region` but not in any of `subregions`
         append: bool, default False
             append the aggregate timeseries to `data` and return None,
             else return aggregate timeseries
@@ -845,12 +846,9 @@ class IamDataFrame(object):
         with adjust_log_level():
             region_df = self.filter(region=region)
 
-        rdf_components = region_df._variable_components(variable, level=None)
-        srdf_components = subregion_df._variable_components(variable,
-                                                            level=None)
-        components = components or (
-            set(rdf_components).difference(srdf_components)
-        )
+        rdf_comps = region_df._variable_components(variable, level=None)
+        srdf_comps = subregion_df._variable_components(variable, level=None)
+        components = components or set(rdf_comps).difference(srdf_comps)
 
         if len(components):
             rows = region_df._apply_filters(variable=components)

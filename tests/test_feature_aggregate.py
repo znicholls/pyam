@@ -1,4 +1,5 @@
 import logging
+import pytest
 
 import numpy as np
 import pandas as pd
@@ -268,6 +269,11 @@ def test_df_check_aggregate_region_components(check_aggregate_regional_df):
     assert obs is None
 
     obs = check_aggregate_regional_df.check_aggregate_region(
+        'Emissions|N2O', 'RASIA', subregions=['China', 'Japan']
+    )
+    assert obs is None
+
+    obs = check_aggregate_regional_df.check_aggregate_region(
         'Emissions|N2O|Ind|Transport', 'REUROPE', subregions=['Germany', 'UK']
     )
     assert obs is None
@@ -279,3 +285,28 @@ def test_check_aggregate_region_no_world(check_aggregate_regional_df, caplog):
     warn_idx = caplog.messages.index("variable `Emissions|N2O` does not exist "
                                      "in region `World`")
     assert caplog.records[warn_idx].levelname == "INFO"
+
+
+@pytest.mark.parametrize("components,exp_vals", (
+    # should find sub-components including nested bunkers
+    (None, [1.9, 15.7]),
+    # should only add AFOLU onto regional sum, not Shipping emissions
+    (["Emissions|N2O|AFOLU"], [0.9, 9.7]),
+    # specifying Ind leads to double counting (and not skipping AFOLU) but as
+    # it's user specified no warning etc. is raised
+    (["Emissions|N2O|Ind"], [2.6, 25.2]),
+))
+def test_aggregate_region_components_handling(check_aggregate_regional_df,
+                                              components, exp_vals):
+    tdf = check_aggregate_regional_df.filter(variable="*N2O*")
+    # only get Europe and Asia to avoid double counting
+    res = tdf.aggregate_region("Emissions|N2O", components=components,
+                               subregions=["REUROPE", "RASIA"])
+    exp_idx = pd.MultiIndex.from_product(
+        [["AIM"], ["cscen"], ["Mt N/yr"], [2005, 2010]],
+        names=["model", "scenario", "unit", "year"]
+    )
+    exp = pd.Series(exp_vals, index=exp_idx)
+    exp.name = "value"
+
+    pd.testing.assert_series_equal(res, exp)
